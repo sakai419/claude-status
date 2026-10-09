@@ -10,13 +10,28 @@ Claude Code の全セッションの状態（実行中・質問中・サブ待�
 
 ## セットアップ
 
-`.zshrc`:
+必要なもの: `jq`、`python3`（macOS は Command Line Tools に入っている）、zsh
 
-```zsh
-source ~/dev/tools/claude-status/shell/cs.zsh
+```sh
+git clone <この repo> ~/dev/tools/claude-status   # 置き場所はどこでもよい
+~/dev/tools/claude-status/install.sh
 ```
 
-`settings.json` の hooks（`claude-multiprofile` の各プロファイルにも同じものを入れる）:
+`install.sh` は次のことをする。何回実行しても同じ結果になる。
+
+- `settings.json` の hooks に `bin/` のスクリプトを登録する（下の表）。既存の hooks には触れず、変更前のファイルは `settings.json.bak.claude-status.<日時>` に残す
+- `~/.zshrc` に `shell/cs.zsh` を読み込む行を足す（`cs` と `ci` が使えるようになる）
+
+| オプション | 内容 |
+|---|---|
+| `--config-dir DIR` | 登録先のプロファイル。既定は `$CLAUDE_CONFIG_DIR`、無ければ `~/.claude`。複数回指定できる |
+| `--dry-run` | 書き込まず、増減する hook を表示する |
+| `--no-zshrc` | `~/.zshrc` に触れない |
+
+repo を別の場所へ移したら、もう一度 `install.sh` を実行すれば登録が新しい場所に置き換わる。
+取り除くときは `uninstall.sh`（オプションは同じ）。状態データ（`~/.claude/status/`）は残すので、不要なら手で消す。
+
+登録される hooks:
 
 | イベント | スクリプト |
 |---|---|
@@ -25,5 +40,3 @@ source ~/dev/tools/claude-status/shell/cs.zsh
 | SubagentStart / SubagentStop | `bin/status-subagent.sh` |
 | SessionStart | `bin/status-session-start.sh` |
 | SessionEnd（matcher: `logout\|prompt_input_exit\|clear\|other`） | `bin/status-cleanup.sh` |
-
-`jq` は `/opt/homebrew/bin/jq` を使う。ビューアは `/usr/bin/python3` の標準ライブラリのみで動く。
