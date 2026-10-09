@@ -20,7 +20,8 @@
 # CS_STATUS_ROOT を設定すると入出力先ディレクトリを差し替えられる（テスト用）。
 set -euo pipefail
 
-JQ=/opt/homebrew/bin/jq
+BIN="$(cd "$(dirname "$0")" && pwd)"
+. "$BIN/lib.sh"
 ROOT="${CS_STATUS_ROOT:-$HOME/.claude/status}"
 SDIR="$ROOT/sessions"
 OUT="$ROOT/status.md"

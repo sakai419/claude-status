@@ -3,8 +3,8 @@
 # ステータスから取り除く（該当 JSON を削除して status.md を再生成）。
 set -euo pipefail
 
-JQ=/opt/homebrew/bin/jq
 BIN="$(cd "$(dirname "$0")" && pwd)"
+. "$BIN/lib.sh"
 SDIR="$HOME/.claude/status/sessions"
 
 input=$(cat)

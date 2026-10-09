@@ -10,8 +10,8 @@
 # 誤って別セッションへ書き込まないよう「書き込まずに候補を表示して終了」する。
 set -euo pipefail
 
-JQ=/opt/homebrew/bin/jq
 BIN="$(cd "$(dirname "$0")" && pwd)"
+. "$BIN/lib.sh"
 SDIR="$HOME/.claude/status/sessions"
 OUT="$HOME/.claude/status/status.md"
 

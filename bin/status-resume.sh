@@ -13,8 +13,8 @@
 # waiting が1件も無ければ jq を起動せずに抜ける（通常はここで終わる）。
 set -uo pipefail
 
-JQ=/opt/homebrew/bin/jq
 BIN="$(cd "$(dirname "$0")" && pwd)"
+. "$BIN/lib.sh"
 SDIR="$HOME/.claude/status/sessions"
 [ -d "$SDIR" ] || exit 0
 

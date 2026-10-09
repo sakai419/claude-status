@@ -14,8 +14,8 @@
 # そのまま親の JSON を更新してよい。
 set -uo pipefail
 
-JQ=/opt/homebrew/bin/jq
 BIN="$(cd "$(dirname "$0")" && pwd)"
+. "$BIN/lib.sh"
 SDIR="$HOME/.claude/status/sessions"
 [ -d "$SDIR" ] || exit 0
 

@@ -37,3 +37,12 @@ is_claude_process() {
   case "$comm" in */claude/versions/*) return 0 ;; esac
   return 1
 }
+
+# jq は PATH から探す。hook は PATH が絞られた環境で走ることがあるので、
+# よくある置き場所も見る。見つからなければ空のまま（呼び出し側で失敗する）。
+JQ=$(command -v jq 2>/dev/null || true)
+if [ -z "$JQ" ]; then
+  for c in /opt/homebrew/bin/jq /usr/local/bin/jq /usr/bin/jq; do
+    if [ -x "$c" ]; then JQ=$c; break; fi
+  done
+fi

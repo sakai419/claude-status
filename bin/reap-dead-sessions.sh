@@ -5,11 +5,10 @@
 # 呼び出し元で set -e が有効な場合に備え、この関数自体は失敗させない。
 set -uo pipefail
 
-JQ=/opt/homebrew/bin/jq
 BIN="$(cd "$(dirname "$0")" && pwd)"
+. "$BIN/lib.sh"
 SDIR="$HOME/.claude/status/sessions"
 LOG="$HOME/.claude/status/reap.log"
-. "$BIN/lib.sh"
 [ -d "$SDIR" ] || exit 0
 
 # 誤削除防止のためのグレース秒数。直近更新から grace 未満のセッションは触らない。

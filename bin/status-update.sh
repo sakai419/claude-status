@@ -11,10 +11,9 @@
 # 既存の通知 hook（stop.sh / notification.sh）とは独立して動く。
 set -euo pipefail
 
-JQ=/opt/homebrew/bin/jq
 BIN="$(cd "$(dirname "$0")" && pwd)"
-SDIR="$HOME/.claude/status/sessions"
 . "$BIN/lib.sh"
+SDIR="$HOME/.claude/status/sessions"
 mkdir -p "$SDIR"
 
 # 保険: SessionEnd が発火しなかったセッション（クラッシュ/強制終了）のゴミを掃除。
