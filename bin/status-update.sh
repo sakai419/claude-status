@@ -121,15 +121,7 @@ epoch=$(date +%s)
 base='{}'
 [ -f "$sfile" ] && base=$(cat "$sfile")
 
-# どのターミナルのどのタブで動いているか。メニューバーアプリがそのタブへ飛ぶのに使う。
-# hook は claude 本体の環境変数を引き継ぐので、起動元のアプリ（__CFBundleIdentifier）や
-# cmux のワークスペース・パネルが分かる。
-term_app="${__CFBundleIdentifier:-}"
-term_program="${TERM_PROGRAM:-}"
-cmux_ws="${CMUX_WORKSPACE_ID:-}"
-cmux_panel="${CMUX_PANEL_ID:-${CMUX_SURFACE_ID:-}}"
-
-filter='.session_id = $sid | .cwd = $cwd | .status = $status | .updated_at = $ts | .updated_epoch = $epoch | .pid = $pid | .intent = (.intent // "") | .transcript_path = (if $tpath != "" then $tpath else (.transcript_path // "") end) | .terminal = {app: $term_app, program: $term_program, cmux_workspace: $cmux_ws, cmux_panel: $cmux_panel}'
+filter='.session_id = $sid | .cwd = $cwd | .status = $status | .updated_at = $ts | .updated_epoch = $epoch | .pid = $pid | .intent = (.intent // "") | .transcript_path = (if $tpath != "" then $tpath else (.transcript_path // "") end)'
 # サブエージェントの本数を知っているのは background_tasks を持つ Stop だけ。
 # 他イベントで代入すると、飛んでいるサブを 0 件に潰してしまうため既存値を保持する。
 if [ "$event" = "UserPromptSubmit" ] || [ "$event" = "Notification" ]; then
@@ -154,10 +146,6 @@ printf '%s' "$base" | "$JQ" \
   --arg pid "$pid" \
   --arg tpath "$tpath" \
   --arg subtypes "$sub_types" \
-  --arg term_app "$term_app" \
-  --arg term_program "$term_program" \
-  --arg cmux_ws "$cmux_ws" \
-  --arg cmux_panel "$cmux_panel" \
   --argjson subagents "$subagents" \
   --argjson epoch "$epoch" \
   "$filter" \

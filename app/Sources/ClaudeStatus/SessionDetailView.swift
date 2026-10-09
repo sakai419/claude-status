@@ -87,19 +87,6 @@ struct SessionDetailView: View {
                 Button("やめる") { confirming = false }.controlSize(.small)
                 Button("消す", role: .destructive) { store.dismiss(session) }.controlSize(.small)
             } else {
-                if TerminalJump.canJump(session) {
-                    Button {
-                        TerminalJump.jump(session)
-                    } label: {
-                        Label("ターミナルで開く", systemImage: "arrow.up.forward.app")
-                            .font(.system(size: 12, weight: .medium))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Theme.text)
-                }
                 IconButton(symbol: "xmark", help: "一覧から消す") { confirming = true }
             }
         }

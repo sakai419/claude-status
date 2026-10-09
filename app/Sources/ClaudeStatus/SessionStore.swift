@@ -108,13 +108,10 @@ final class SessionStore {
 enum Shell {
     /// 外部コマンドを実行して標準出力を返す。シェルを経由しない。
     @discardableResult
-    static func run(_ executable: URL, arguments: [String], environment: [String: String]? = nil) throws -> String {
+    static func run(_ executable: URL, arguments: [String]) throws -> String {
         let p = Process()
         p.executableURL = executable
         p.arguments = arguments
-        if let environment {
-            p.environment = ProcessInfo.processInfo.environment.merging(environment) { $1 }
-        }
         let out = Pipe()
         p.standardOutput = out
         p.standardError = FileHandle.nullDevice

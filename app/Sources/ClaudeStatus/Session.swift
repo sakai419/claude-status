@@ -14,9 +14,6 @@ struct Session: Identifiable, Hashable {
     let subagentCount: Int
     let subagentTypes: String
     let lastPrompt: String
-    let terminalApp: String
-    let cmuxWorkspace: String
-    let cmuxPanel: String
 
     init?(json: [String: Any]) {
         func str(_ key: String) -> String {
@@ -45,10 +42,6 @@ struct Session: Identifiable, Hashable {
         subagentCount = Int(num("subagent_count"))
         subagentTypes = str("subagent_types")
         lastPrompt = str("last_prompt")
-        let term = json["terminal"] as? [String: Any] ?? [:]
-        terminalApp = term["app"] as? String ?? ""
-        cmuxWorkspace = term["cmux_workspace"] as? String ?? ""
-        cmuxPanel = term["cmux_panel"] as? String ?? ""
     }
 
     /// cwd の末尾（プロジェクト名）。ホームディレクトリそのものは ~ と出す。

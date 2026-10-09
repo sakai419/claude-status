@@ -252,9 +252,6 @@ private struct SessionRow: View {
         .onHover { hovering = $0 }
         .onTapGesture(perform: onSelect)
         .contextMenu {
-            if TerminalJump.canJump(session) {
-                Button("ターミナルで開く") { TerminalJump.jump(session) }
-            }
             Button("パスをコピー") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(session.cwd, forType: .string)
