@@ -51,14 +51,16 @@ struct Session: Identifiable, Hashable {
         cmuxPanel = term["cmux_panel"] as? String ?? ""
     }
 
-    /// cwd の末尾（プロジェクト名）
+    /// cwd の末尾（プロジェクト名）。ホームディレクトリそのものは ~ と出す。
     var projectName: String {
+        if cwd == NSHomeDirectory() { return "~" }
         let name = (cwd as NSString).lastPathComponent
         return name.isEmpty ? "(不明)" : name
     }
 
-    /// cwd の親ディレクトリ。ホームは ~ に縮める。
+    /// cwd の親ディレクトリ。ホームは ~ に縮める。cwd がホームなら空。
     var parentPath: String {
+        if cwd == NSHomeDirectory() { return "" }
         let parent = (cwd as NSString).deletingLastPathComponent
         let home = NSHomeDirectory()
         if parent == home { return "~" }

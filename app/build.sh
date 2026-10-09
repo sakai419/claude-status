@@ -1,5 +1,5 @@
 #!/bin/bash
-# メニューバーアプリ（ClaudeStatus.app）をビルドする。
+# Claude Status（ClaudeStatus.app）をビルドする。
 #   app/build.sh             app/build/ClaudeStatus.app を作る
 #   app/build.sh --install   さらに ~/Applications に入れて起動する（起動中なら入れ替える）
 #
@@ -40,8 +40,7 @@ cat > "$plist" <<EOF
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>CFBundleVersion</key><string>1</string>
-  <key>LSMinimumSystemVersion</key><string>14.0</string>
-  <key>LSUIElement</key><true/>
+  <key>LSMinimumSystemVersion</key><string>15.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>

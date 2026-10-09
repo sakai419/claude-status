@@ -5,12 +5,21 @@ struct ClaudeStatusApp: App {
     @State private var store = SessionStore()
 
     var body: some Scene {
+        Window("Claude Status", id: MainWindow.id) {
+            MainWindow(store: store)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowBackgroundDragBehavior(.enabled)
+        .defaultSize(width: 980, height: 640)
+        .windowResizability(.contentMinSize)
+
+        // メニューバーには件数だけ出し、クリックでウィンドウを呼び出せるようにする
         MenuBarExtra {
-            ContentView(store: store)
+            StatusMenu(store: store)
         } label: {
             MenuBarLabel(store: store)
         }
-        .menuBarExtraStyle(.window)
+        .menuBarExtraStyle(.menu)
     }
 }
 
@@ -30,5 +39,29 @@ struct MenuBarLabel: View {
         } else {
             Image(systemName: "bubble.left")
         }
+    }
+}
+
+struct StatusMenu: View {
+    let store: SessionStore
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("ウィンドウを開く") {
+            openWindow(id: MainWindow.id)
+            NSApp.activate()
+        }
+        .keyboardShortcut("o")
+        Divider()
+        if store.sessions.isEmpty {
+            Text("動いているセッションはありません")
+        } else {
+            ForEach(store.grouped, id: \.group) { entry in
+                Text("\(entry.group.title)  \(entry.sessions.count)")
+            }
+        }
+        Divider()
+        Button("終了") { NSApp.terminate(nil) }
+            .keyboardShortcut("q")
     }
 }
