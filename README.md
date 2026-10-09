@@ -6,20 +6,20 @@ Claude Code の全セッションの状態（実行中・質問中・サブ待�
 - `shell/cs.zsh` `cs`（ステータス常時表示）と `ci`（意図1行の記録）
 
 スクリプト同士は自分の置き場所からの相対パスで呼び合うので、repo の場所は問わない。
-状態データの置き場所は `~/.claude/status/` 固定。
+状態データの置き場所は `~/.claude/status/` 固定。プロンプトの抜粋を含むので、自分だけが読める権限で作る。
 
 ## セットアップ
 
 必要なもの: `jq`、`python3`（macOS は Command Line Tools に入っている）、zsh
 
 ```sh
-git clone <この repo> ~/dev/tools/claude-status   # 置き場所はどこでもよい
+git clone https://github.com/sakai419/claude-status.git ~/dev/tools/claude-status   # 置き場所はどこでもよい
 ~/dev/tools/claude-status/install.sh
 ```
 
 `install.sh` は次のことをする。何回実行しても同じ結果になる。
 
-- `settings.json` の hooks に `bin/` のスクリプトを登録する（下の表）。既存の hooks には触れず、変更前のファイルは `settings.json.bak.claude-status.<日時>` に残す
+- `settings.json` の hooks に `bin/` のスクリプトを登録する（下の表）。既存の hooks には触れず、変更前のファイルは `settings.json.bak.claude-status.<日時>` に残す。登録するコマンドの末尾には目印の `# claude-status` が付き、入れ直しや取り除きはこの目印で自分の分を見分ける
 - `~/.zshrc` に `shell/cs.zsh` を読み込む行を足す（`cs` と `ci` が使えるようになる）
 
 | オプション | 内容 |
@@ -40,3 +40,7 @@ repo を別の場所へ移したら、もう一度 `install.sh` を実行すれ�
 | SubagentStart / SubagentStop | `bin/status-subagent.sh` |
 | SessionStart | `bin/status-session-start.sh` |
 | SessionEnd（matcher: `logout\|prompt_input_exit\|clear\|other`） | `bin/status-cleanup.sh` |
+
+## ライセンス
+
+MIT
