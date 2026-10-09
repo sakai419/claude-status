@@ -32,7 +32,7 @@ session=$(printf '%s' "$input" | "$JQ" -r '.session_id // empty')
 cwd=$(printf '%s' "$input" | "$JQ" -r '.cwd // empty')
 tpath=$(printf '%s' "$input" | "$JQ" -r '.transcript_path // empty')
 [ -z "$cwd" ] && cwd="$PWD"
-[ -z "$session" ] && exit 0
+valid_session_id "$session" || exit 0
 
 # このセッションを動かしている claude プロセスの PID を特定する。
 # 失敗した場合は空文字ではなく既存 JSON の pid を引き継ぐ（探索の一時的失敗で
@@ -97,15 +97,16 @@ else
   prompt=""
   if [ ! -f "$sfile" ] && [ -n "$tpath" ] && [ -f "$tpath" ]; then
     # UserPromptSubmit を経ていない旧セッション向けフォールバック: transcript から直近ユーザー発話を抽出
-    prompt=$("$JQ" -rs '
-      [ .[]
+    # 長い transcript は数百MBになるので末尾 4MB だけ読む（途中で切れた先頭行は捨てる）
+    prompt=$(tail -c 4194304 "$tpath" | "$JQ" -Rrn '
+      [ inputs | fromjson? // empty
         | select(.type=="user")
         | .message.content
         | if type=="string" then .
           elif type=="array" then ([ .[] | select(.type=="text") | .text ] | join(""))
           else empty end
         | select(. != null and . != "")
-      ] | last // ""' "$tpath" 2>/dev/null || echo "")
+      ] | last // ""' 2>/dev/null || echo "")
   fi
 fi
 

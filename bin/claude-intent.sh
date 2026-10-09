@@ -50,8 +50,12 @@ print_candidates() {
       elif $d < 3600  then "\(($d/60)|floor)分前"
       elif $d < 86400 then "\(($d/3600)|floor)時間前"
       else                 "\(($d/86400)|floor)日前" end;
+    def clean: (. // "") | tostring | gsub("[\\x{00}-\\x{1f}\\x{7f}-\\x{9f}]+"; " ");
+    def tilde: env.HOME as $h
+      | if . == $h then "~" elif startswith($h + "/") then "~" + .[($h | length):] else . end;
     sort_by(.updated_epoch) | reverse | .[]
-    | "    \(.session_id[0:8])  \(if .status=="running" then "🔵実行中" elif .status=="waiting" then "⚠️質問中" else "✅完了" end)  [\(.cwd|split("/")|last)]  \(.cwd|sub("^"+env.HOME;"~"))  (\($now-(.updated_epoch//0)|rel(.)))"
+    | (.cwd | clean) as $cwd
+    | "    \(.session_id | clean | .[0:8])  \(if .status=="running" then "🔵実行中" elif .status=="waiting" then "⚠️質問中" else "✅完了" end)  [\($cwd|split("/")|last)]  \($cwd|tilde)  (\($now-(.updated_epoch//0)|rel(.)))"
   ' "${files[@]}"
 }
 
@@ -89,12 +93,13 @@ elif [ "$count" -gt 1 ]; then
 fi
 
 target=$(printf '%s' "$ids" | head -1)
+valid_session_id "$target" || { echo "⚠ 対象セッションの session_id が不正なため書き込みません。" >&2; exit 1; }
 sfile="$SDIR/$target.json"
 "$JQ" --arg intent "$intent" '.intent = $intent' "$sfile" > "$sfile.tmp.$$" && mv "$sfile.tmp.$$" "$sfile"
 
 "$BIN/claude-status-render.sh" 2>/dev/null || true
 
-proj=$("$JQ" -r '.cwd | split("/") | last' "$sfile")
+proj=$("$JQ" -r '.cwd // "" | gsub("[\\x{00}-\\x{1f}\\x{7f}-\\x{9f}]+"; " ") | split("/") | last' "$sfile")
 if [ -n "$intent" ]; then
   echo "意図を記録しました [$proj] (${target:0:8}): $intent"
 else

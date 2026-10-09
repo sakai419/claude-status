@@ -29,7 +29,7 @@ agent_id=$(printf '%s' "$input" | "$JQ" -r '.agent_id // ""' 2>/dev/null || echo
 [ -n "$agent_id" ] && exit 0
 
 session=$(printf '%s' "$input" | "$JQ" -r '.session_id // empty' 2>/dev/null || echo "")
-[ -z "$session" ] && exit 0
+valid_session_id "$session" || exit 0
 
 sfile="$SDIR/$session.json"
 [ -f "$sfile" ] || exit 0

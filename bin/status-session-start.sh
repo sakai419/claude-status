@@ -12,7 +12,7 @@ SDIR="$HOME/.claude/status/sessions"
 
 input=$(cat)
 session=$(printf '%s' "$input" | "$JQ" -r '.session_id // empty')
-[ -z "$session" ] && exit 0
+valid_session_id "$session" || exit 0
 
 # PID が既に死んでいるセッション（OS再起動後の初回起動など）を掃除。
 "$BIN/reap-dead-sessions.sh" 2>/dev/null || true

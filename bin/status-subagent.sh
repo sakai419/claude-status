@@ -22,7 +22,7 @@ SDIR="$HOME/.claude/status/sessions"
 input=$(cat)
 event=$(printf '%s' "$input" | "$JQ" -r '.hook_event_name // empty' 2>/dev/null || echo "")
 session=$(printf '%s' "$input" | "$JQ" -r '.session_id // empty' 2>/dev/null || echo "")
-[ -z "$session" ] && exit 0
+valid_session_id "$session" || exit 0
 
 sfile="$SDIR/$session.json"
 # セッション JSON が無い＝まだ UserPromptSubmit を経ていない。ここで作ると

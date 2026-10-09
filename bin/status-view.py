@@ -82,6 +82,18 @@ IDLE_LOOK = ("💤", "アイドル", "90")
 AMBIG = 2
 
 
+def is_control(ch):
+    """端末を操作しうる制御文字か（C0・DEL・C1）。表示する文字列からは落とす。"""
+    o = ord(ch)
+    return o < 0x20 or 0x7F <= o <= 0x9F
+
+
+def plain_text(text):
+    """色指定を外し、残りの制御文字も落とす（改行は残す）。非TTY出力用。"""
+    text = SGR_RE.sub("", text)
+    return "".join(ch for ch in text if ch == "\n" or not is_control(ch))
+
+
 def cell_width(ch):
     if unicodedata.combining(ch):
         return 0
@@ -169,7 +181,7 @@ def fit(line, width):
                 i += 1
             continue
         i += 1
-        if ord(ch) < 0x20:  # 制御文字は落とす
+        if is_control(ch):  # 制御文字は落とす
             continue
         cw = cell_width(ch)
         if w + cw > width:
@@ -209,7 +221,7 @@ def wrap(text, width, indent=""):
                 continue
             ch = para[i]
             i += 1
-            if ord(ch) < 0x20:
+            if is_control(ch):
                 continue
             cw = cell_width(ch)
             if w + cw > width and visible:
@@ -514,7 +526,7 @@ def main():
     global AMBIG
 
     if not sys.stdout.isatty():
-        sys.stdout.write(SGR_RE.sub("", "\n".join(read_lines())) + "\n")
+        sys.stdout.write(plain_text("\n".join(read_lines())) + "\n")
         return 0
 
     fd = sys.stdin.fileno()

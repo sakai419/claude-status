@@ -34,6 +34,7 @@ now_h=$(date +"%H:%M:%S")
 # 書き込みは tmp→mv の原子的置換だが、途中で kill された場合に tmp が残る。
 # 5分以上前の取り残しだけ掃除する（実行中の他プロセスの tmp は触らない）。
 find "$ROOT" -maxdepth 1 -name 'status.*.tmp.*' -mmin +5 -delete 2>/dev/null || true
+find "$SDIR" -maxdepth 1 -name '*.json.tmp.*' -mmin +5 -delete 2>/dev/null || true
 
 shopt -s nullglob
 files=("$SDIR"/*.json)
@@ -69,9 +70,20 @@ done
         elif $d < 86400 then "\(($d/3600)|floor)時間前"
         else                 "\(($d/86400)|floor)日前" end;
 
+      # プロンプトや cwd は外から来た文字列なので、端末を操作できる制御文字
+      # （ESC・C1 制御文字・DEL。改行もここで潰す）を空白にしてから出す。
+      def clean: (. // "") | tostring | gsub("[\\x{00}-\\x{1f}\\x{7f}-\\x{9f}]+"; " ");
+
       def short($t; $n):
-        ($t // "") | gsub("[\n\r]+"; " ")
+        ($t | clean)
         | if (length > $n) then (.[0:$n] + "…") else . end;
+
+      # ホームディレクトリを ~ に縮める（HOME を正規表現として扱わない）
+      def tilde:
+        env.HOME as $h
+        | if . == $h then "~"
+          elif startswith($h + "/") then "~" + .[($h | length):]
+          else . end;
 
       # アイドル行で「元の状態」を添えるためのラベル。
       def slabel($s):
@@ -87,8 +99,8 @@ done
       # 1セッション分のブロック。左端に状態色の縦バーを引いて視覚的にまとめる。
       # $showstate=true のときはプロジェクト名の後ろに元の状態を添える（アイドル用）。
       def entry($col; $now; $showstate):
-        ( .cwd // "" ) as $cwd
-        | ( $cwd | sub("^" + env.HOME; "~") ) as $dir
+        ( .cwd | clean ) as $cwd
+        | ( $cwd | tilde ) as $dir
         | ( $dir | split("/") ) as $p
         | ( $p | last ) as $proj
         | ( if ($p | length) > 1 then (($p | .[0:-1] | join("/")) + "/") else "" end ) as $pfx

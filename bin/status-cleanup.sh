@@ -9,7 +9,7 @@ SDIR="$HOME/.claude/status/sessions"
 
 input=$(cat)
 session=$(printf '%s' "$input" | "$JQ" -r '.session_id // empty')
-[ -n "$session" ] && rm -f "$SDIR/$session.json"
+valid_session_id "$session" && rm -f "$SDIR/$session.json"
 
 "$BIN/claude-status-render.sh" 2>/dev/null || true
 exit 0
