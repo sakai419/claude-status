@@ -12,7 +12,9 @@
 #      取り除いてから入れ直すので、何回実行しても重複しない。
 #   3. zshrc に shell/cs.zsh を読み込む1行を足す（cs / ci が使えるようになる）
 #
-# 状態データ（~/.claude/status）は作りも消しもしない。hook が初回に作る。
+#   4. 既にある状態データ（~/.claude/status）を自分以外から読めない権限にする
+#
+# 状態データは作りも消しもしない。hook が初回に作る。
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
@@ -47,6 +49,8 @@ if [ ${#config_dirs[@]} -eq 0 ]; then
 fi
 
 say()  { printf '%s\n' "$*"; }
+# シェルにそのまま渡せる形（単一引用符）にする。パスに空白や $ や ` があっても安全。
+shell_quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 warn() { printf '注意: %s\n' "$*" >&2; }
 die()  { printf 'エラー: %s\n' "$*" >&2; exit 1; }
 
@@ -81,11 +85,15 @@ HOOKS_SPEC='[
    "matcher": "logout|prompt_input_exit|clear|other"}
 ]'
 
-# この repo の hook かどうかはスクリプト名で見分ける。置き場所は問わないので、
-# 以前に別の場所から入れたもの（例: ~/.claude/bin/status-update.sh）も対象になる。
+# 登録するコマンドの末尾には目印のコメントを付け、それで自分の hook を見分ける。
+# repo を移した後に入れ直しても、前の場所で入れた分が置き換わる。
+# 目印が無い頃の登録（claude-status/bin/ と ~/.claude/bin/ の status-*.sh）も対象にする。
 # グループ内の他の hook は残し、自分の分を抜いて空になったグループ・イベントだけ消す。
+MARKER="# claude-status"
 JQ_STRIP='
-  def ours: (.command? // "") | test("/bin/status-(update|resume|cleanup|session-start|subagent)\\.sh\"?$");
+  def ours: (.command? // "")
+    | test("# claude-status$")
+      or test("(claude-status|\\.claude)/bin/status-(update|resume|cleanup|session-start|subagent)\\.sh[\"\u0027]?$");
   def strip_group:
     if ((.hooks // []) | any(ours))
     then (.hooks |= map(select(ours | not))) | select((.hooks | length) > 0)
@@ -104,7 +112,7 @@ JQ_ADD='
   | reduce $spec[] as $s (.;
       .hooks[$s.event] = ((.hooks[$s.event] // []) + [
         (if $s.matcher then {matcher: $s.matcher} else {} end)
-        + {hooks: [{type: "command", command: ("\"" + $bin + "/" + $s.script + "\""), async: true}]}
+        + {hooks: [{type: "command", command: (($bin + "/" + $s.script | @sh) + " " + $marker), async: true}]}
       ]))
 '
 
@@ -140,10 +148,10 @@ apply_settings() {
   if [ -f "$file" ]; then
     "$JQ" -e 'type == "object"' "$file" >/dev/null 2>&1 \
       || { rm -f "$tmp"; die "$file が JSON オブジェクトとして読めません。手で直してから再実行してください。"; }
-    "$JQ" --arg bin "$BIN" --argjson spec "$HOOKS_SPEC" "$filter" "$file" > "$tmp"
+    "$JQ" --arg bin "$BIN" --arg marker "$MARKER" --argjson spec "$HOOKS_SPEC" "$filter" "$file" > "$tmp"
   else
     [ "$mode" = install ] || { rm -f "$tmp"; say "  $file がありません。スキップします。"; return; }
-    printf '{}' | "$JQ" --arg bin "$BIN" --argjson spec "$HOOKS_SPEC" "$filter" > "$tmp"
+    printf '{}' | "$JQ" --arg bin "$BIN" --arg marker "$MARKER" --argjson spec "$HOOKS_SPEC" "$filter" > "$tmp"
   fi
 
   if [ -f "$file" ] && "$JQ" -e --slurpfile a "$file" --slurpfile b "$tmp" -n '$a == $b' >/dev/null; then
@@ -160,7 +168,8 @@ apply_settings() {
   fi
 
   if [ -f "$file" ]; then
-    local backup="$file.bak.claude-status.$(date +%Y%m%d-%H%M%S)"
+    local backup
+    backup="$file.bak.claude-status.$(date +%Y%m%d-%H%M%S)"
     # 同じ秒に続けて実行しても前のバックアップを潰さない
     [ -e "$backup" ] && backup="$backup.$$"
     cp -p "$file" "$backup"
@@ -181,10 +190,24 @@ for dir in "${config_dirs[@]}"; do
   apply_settings "$dir"
 done
 
+# 以前の版は umask 任せで状態データを作っていた（共有マシンだと他のユーザーから
+# プロンプトが読める）。今の hook は自分専用で作るので、既存の分も揃える。
+STATUS_DIR="$HOME/.claude/status"
+if [ "$mode" = install ] && [ -d "$STATUS_DIR" ] && [ -n "$(find "$STATUS_DIR" -perm -g=r -o -perm -o=r | head -1)" ]; then
+  say "状態データ"
+  if [ "$dry_run" -eq 1 ]; then
+    say "  $STATUS_DIR を自分だけが読める権限にする予定"
+  else
+    chmod -R go-rwx "$STATUS_DIR"
+    say "  $STATUS_DIR を自分だけが読める権限にしました"
+  fi
+fi
+
 # ---- 3. zshrc --------------------------------------------------------------
 
 apply_zshrc() {
-  local line="source \"$REPO/shell/cs.zsh\""
+  local line
+  line="source $(shell_quote "$REPO/shell/cs.zsh")"
   if [ "$mode" = install ]; then
     if [ -f "$ZSHRC" ] && grep -qF "shell/cs.zsh" "$ZSHRC"; then
       say "  $ZSHRC は既に cs.zsh を読み込んでいます（変更なし）"

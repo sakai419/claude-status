@@ -4,7 +4,11 @@ CLAUDE_STATUS_BIN="${${(%):-%x}:A:h:h}/bin"
 
 # ci: 意図1行を現在のセッションに記録  例) ci "race を疑ってる。戻ったら logs/ を見る"
 #     ci -l で今の状況を1回表示 / 引数なしで意図クリア
-alias ci="$CLAUDE_STATUS_BIN/claude-intent.sh"
+# 以前の alias が残っていると関数定義と衝突するので外しておく
+unalias ci 2>/dev/null
+function ci {
+  "$CLAUDE_STATUS_BIN/claude-intent.sh" "$@"
+}
 
 # cs: 全セッションのステータスを常時表示（q / Esc で終了）
 # 死活監視は各セッションの hook（UserPromptSubmit/Stop/SessionStart）から
