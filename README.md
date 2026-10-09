@@ -41,6 +41,22 @@ repo を別の場所へ移したら、もう一度 `install.sh` を実行すれ�
 | SessionStart | `bin/status-session-start.sh` |
 | SessionEnd（matcher: `logout\|prompt_input_exit\|clear\|other`） | `bin/status-cleanup.sh` |
 
+## メニューバーアプリ（macOS）
+
+`cs` と同じ一覧をメニューバーから開ける。手当てが要る「質問中」があるとアイコンに件数が出る。
+
+```sh
+app/build.sh --install   # ビルドして ~/Applications に入れ、起動する
+```
+
+- 一覧から選ぶと、プロンプトの全文とエージェントの返答（Markdown を整形して表示）が読める
+- 「ターミナルで開く」でそのセッションのターミナルを前面に出す。cmux ならワークスペースとタブまで選ぶ
+- 「一覧から消す」は `cs` の `x` と同じ（JSON を消すだけで、プロセスは止めない）
+- 「ログイン時に起動」はパネル下のチェックで切り替える
+
+必要なもの: macOS 14 以降、Swift（Xcode または Command Line Tools）。署名はアドホックなので、ビルドした Mac でだけ使う想定。
+repo を移したらビルドし直す（一覧から消したときに `bin/claude-status-render.sh` を呼ぶため、ビルド時に場所を埋め込んでいる）。
+
 ## ライセンス
 
 MIT
