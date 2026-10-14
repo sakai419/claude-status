@@ -3,11 +3,15 @@ import SwiftUI
 
 /// メインウィンドウ。左にセッション一覧、右に選んだセッションの詳細。
 /// ↑↓ / j k で選択を動かせる（ターミナル版の cs と同じキー）。
+/// 右ペインは、待ち時間用のミニゲームにも切り替えられる。
 struct MainWindow: View {
     static let id = "main"
 
     let store: SessionStore
     @State private var selectedID: String?
+    @State private var playing = false
+    @State private var game = Game2048()
+    @FocusState private var listFocused: Bool
 
     /// 表示順に並べた全セッション（キー操作の移動先を決めるのに使う）
     private var ordered: [Session] { store.grouped.flatMap(\.sessions) }
@@ -19,11 +23,13 @@ struct MainWindow: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            SessionListPane(store: store, selectedID: $selectedID)
+            SessionListPane(store: store, selectedID: $selectedID, playing: $playing)
                 .frame(width: 360)
             Rectangle().fill(Theme.line).frame(width: 1)
             Group {
-                if let session = selected {
+                if playing {
+                    GameView(game: game) { playing = false }
+                } else if let session = selected {
                     SessionDetailView(store: store, session: session)
                         .id(session.id)
                 } else {
@@ -37,13 +43,18 @@ struct MainWindow: View {
         .ignoresSafeArea()
         .environment(\.colorScheme, .dark)
         .focusable()
+        .focused($listFocused)
         .focusEffectDisabled()
         .onKeyPress(keys: [.upArrow, .downArrow, "j", "k"]) { press in
+            // ゲーム中のキーはゲーム側が受ける。ここまで来ても一覧は動かさない
+            guard !playing else { return .ignored }
             move(press.key == .upArrow || press.key == "k" ? -1 : 1)
             return .handled
         }
         .onAppear(perform: keepSelection)
         .onChange(of: store.sessions) { keepSelection() }
+        // ゲームを閉じたら、キー操作を一覧に戻す
+        .onChange(of: playing) { _, on in if !on { listFocused = true } }
     }
 
     /// 選択中のセッションが消えたら（または未選択なら）先頭を選ぶ
@@ -78,6 +89,7 @@ private struct EmptyDetail: View {
 private struct SessionListPane: View {
     let store: SessionStore
     @Binding var selectedID: String?
+    @Binding var playing: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -97,8 +109,8 @@ private struct SessionListPane: View {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 18) {
                             ForEach(store.grouped, id: \.group) { entry in
-                                GroupSection(store: store, group: entry.group,
-                                             sessions: entry.sessions, selectedID: $selectedID)
+                                GroupSection(store: store, group: entry.group, sessions: entry.sessions,
+                                             selectedID: $selectedID, playing: $playing)
                             }
                         }
                         .padding(.horizontal, 12)
@@ -123,6 +135,8 @@ private struct SessionListPane: View {
                 CountChip(group: entry.group, count: entry.sessions.count)
             }
             Spacer(minLength: 0)
+            IconButton(symbol: playing ? "gamecontroller.fill" : "gamecontroller",
+                       help: playing ? "詳細に戻る" : "ミニゲーム（2048）") { playing.toggle() }
         }
         .padding(.leading, 84)
         .padding(.trailing, 14)
@@ -154,6 +168,7 @@ private struct GroupSection: View {
     let group: SessionGroup
     let sessions: [Session]
     @Binding var selectedID: String?
+    @Binding var playing: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -169,7 +184,10 @@ private struct GroupSection: View {
 
             ForEach(sessions) { session in
                 SessionRow(store: store, session: session, group: group,
-                           selected: session.id == selectedID) { selectedID = session.id }
+                           selected: session.id == selectedID && !playing) {
+                    selectedID = session.id
+                    playing = false
+                }
                     .id(session.id)
             }
         }
