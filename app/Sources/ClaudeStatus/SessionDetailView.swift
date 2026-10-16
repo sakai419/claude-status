@@ -124,6 +124,12 @@ struct SessionDetailView: View {
                         Text("\(session.subagentCount)件" + (session.subagentTypes.isEmpty ? "" : " · \(session.subagentTypes)"))
                     }
                 }
+                ForEach(session.watches, id: \.kind) { w in
+                    GridRow {
+                        metaLabel(w.kind)
+                        Text("\(w.count)件" + (w.descs.isEmpty ? "" : " · \(w.descs)"))
+                    }
+                }
             }
             .font(.system(size: 12))
             .foregroundStyle(Theme.text.opacity(0.85))

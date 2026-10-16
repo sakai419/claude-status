@@ -2,10 +2,12 @@
 # 全セッションのJSONを集約して ~/.claude/status/status.md を再生成する。
 # status-update.sh / status-resume.sh / claude-intent.sh から呼ばれる共通レンダラ。
 #
-# 並び順は「⚠️ 質問中 → 💤 アイドル → ✅ 完了 → 🟣 サブ待ち → 🔵 実行中」の5セクション。
+# 並び順は「⚠️ 質問中 → 💤 アイドル → ✅ 完了 → 📡 待受中 → 🟣 サブ待ち → 🔵 実行中」の6セクション。
 # 手当てが必要なものを上に、放っておいてよいものを下に置く。
 # サブ待ちは Stop 後もサブエージェントの完了を待って止まっている状態。放置すれば
 # 進むので下寄りだが、完全に自走している実行中よりは気に掛ける必要があるため間に置く。
+# 待受中はバックグラウンドの shell / Monitor / cron の予約を残して止まっている状態。
+# いつ動き出すかは外からのイベント次第で、放置しても終わるとは限らないためサブ待ちより上に置く。
 # 各セクション内は更新の新しい順。
 #
 # アイドルは「更新が CS_IDLE_SECS 秒以上止まっているセッション」。Desktop から起動した
@@ -90,6 +92,7 @@ done
         if   $s == "waiting"   then "質問中"
         elif $s == "completed" then "完了"
         elif $s == "subagent"  then "サブ待ち"
+        elif $s == "watching"  then "待受中"
         elif $s == "running"   then "実行中"
         else "不明" end;
 
@@ -114,6 +117,12 @@ done
           ( if (.status // "") == "subagent" and (.subagent_count // 0) > 0
             then "  \(bar($col)) \(dim)サブ\(r) \(.subagent_count)件\(if (.subagent_types // "") != "" then " \(dim)\(short(.subagent_types; 24))\(r)" else "" end)"
             else empty end ),
+          ( if ((.status // "") == "watching" or (.status // "") == "subagent") and (.shell_count // 0) > 0
+            then "  \(bar($col)) \(dim)shell\(r) \(.shell_count)件\(if (.shell_descs // "") != "" then " \(dim)\(short(.shell_descs; 24))\(r)" else "" end)"
+            else empty end ),
+          ( if ((.status // "") == "watching" or (.status // "") == "subagent") and (.cron_count // 0) > 0
+            then "  \(bar($col)) \(dim)cron\(r) \(.cron_count)件\(if (.cron_descs // "") != "" then " \(dim)\(short(.cron_descs; 24))\(r)" else "" end)"
+            else empty end ),
           "  \(bar($col)) \(dim)⏱ \(rel($d)) · \(.updated_at // "")\(r)",
           "";
 
@@ -130,7 +139,7 @@ done
       . as $all
       | [ $all[] | select(is_idle($now) | not) ] as $rows
       | ( [ $all[] | select(is_idle($now)) ] | sort_by(-(.updated_epoch // 0)) ) as $idles
-      | ["waiting", "completed", "subagent", "running"] as $known
+      | ["waiting", "completed", "watching", "subagent", "running"] as $known
       | [ $rows[] | (.status // "") as $s | select($known | index($s) | not) ] as $other
       | "\(bold) CLAUDE CODE STATUS\(r)  \(dim)· \($all | length) セッション · 更新 \($nowh)\(r)",
         "\(dim) ─────────\(r)",
@@ -142,6 +151,7 @@ done
             ( $idles[] | entry("90"; $now; true) )
           end ),
         section($rows; "completed"; "✅"; "完了";     "32"; $now),
+        section($rows; "watching";  "📡"; "待受中";   "34"; $now),
         section($rows; "subagent";  "🟣"; "サブ待ち"; "35"; $now),
         section($rows; "running";   "🔵"; "実行中";   "36"; $now),
         ( if ($other | length) == 0 then empty
@@ -166,9 +176,10 @@ else
       if   $s == "waiting"   then 0
       elif $idle_flag        then 1
       elif $s == "completed" then 2
-      elif $s == "subagent"  then 3
-      elif $s == "running"   then 4
-      else 5 end;
+      elif $s == "watching"  then 3
+      elif $s == "subagent"  then 4
+      elif $s == "running"   then 5
+      else 6 end;
     map(. + { _idle: is_idle })
     | sort_by([ rank(._idle; (.status // "")), -(.updated_epoch // 0) ])
     | map({
@@ -180,6 +191,10 @@ else
         intent:          (.intent // ""),
         subagent_count:  (.subagent_count // 0),
         subagent_types:  (.subagent_types // ""),
+        shell_count:     (.shell_count // 0),
+        shell_descs:     (.shell_descs // ""),
+        cron_count:      (.cron_count // 0),
+        cron_descs:      (.cron_descs // ""),
         updated_at:      (.updated_at // ""),
         updated_epoch:   (.updated_epoch // 0),
         transcript_path: (.transcript_path // "")

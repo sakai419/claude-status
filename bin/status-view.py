@@ -69,6 +69,7 @@ PINNED = 2  # status.md の先頭2行（見出しと区切り線）はスクロ�
 
 STATUS_LOOK = {
     "waiting":   ("⚠️", "質問中", "33"),
+    "watching":  ("📡", "待受中", "34"),
     "subagent":  ("🟣", "サブ待ち", "35"),
     "completed": ("✅", "完了", "32"),
     "running":   ("🔵", "実行中", "36"),
@@ -420,6 +421,15 @@ def detail_body(entry, width):
         if types:
             line += " %s%s%s" % (DIM, types, RESET)
         out.extend(wrap(line, width))
+    if status in ("watching", "subagent"):
+        for key in ("shell", "cron"):
+            if not entry.get(key + "_count"):
+                continue
+            line = "%s %s%s %d件" % (DIM, key, RESET, entry[key + "_count"])
+            descs = entry.get(key + "_descs") or ""
+            if descs:
+                line += " %s%s%s" % (DIM, descs, RESET)
+            out.extend(wrap(line, width))
     out.append("")
 
     out.append("%s プロンプト%s" % (head, RESET))

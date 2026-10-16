@@ -48,7 +48,7 @@ struct MenuBarLabel: View {
 
     var body: some View {
         let waiting = store.count(.waiting)
-        let active = store.count(.running) + store.count(.subagent)
+        let active = store.count(.running) + store.count(.subagent) + store.count(.watching)
         if waiting > 0 {
             Label("\(waiting)", systemImage: "exclamationmark.bubble.fill")
                 .labelStyle(.titleAndIcon)

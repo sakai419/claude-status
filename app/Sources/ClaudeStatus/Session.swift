@@ -13,6 +13,10 @@ struct Session: Identifiable, Hashable {
     let transcriptPath: String
     let subagentCount: Int
     let subagentTypes: String
+    let shellCount: Int
+    let shellDescs: String
+    let cronCount: Int
+    let cronDescs: String
     let lastPrompt: String
 
     init?(json: [String: Any]) {
@@ -41,6 +45,10 @@ struct Session: Identifiable, Hashable {
         transcriptPath = str("transcript_path")
         subagentCount = Int(num("subagent_count"))
         subagentTypes = str("subagent_types")
+        shellCount = Int(num("shell_count"))
+        shellDescs = str("shell_descs")
+        cronCount = Int(num("cron_count"))
+        cronDescs = str("cron_descs")
         lastPrompt = str("last_prompt")
     }
 
@@ -73,15 +81,32 @@ struct Session: Identifiable, Hashable {
     }
 
     var updatedDate: Date { Date(timeIntervalSince1970: updatedEpoch) }
+
+    /// 待ち受けている shell / cron の内訳。待受中とサブ待ちのときだけ意味を持つ。
+    var watches: [Watch] {
+        guard state == .watching || state == .subagent else { return [] }
+        return [
+            Watch(kind: "shell", count: shellCount, descs: shellDescs),
+            Watch(kind: "cron", count: cronCount, descs: cronDescs),
+        ].filter { $0.count > 0 }
+    }
+}
+
+/// セッションが待ち受けているもの（バックグラウンドの shell と Monitor、cron の予約）。
+struct Watch: Hashable {
+    let kind: String
+    let count: Int
+    let descs: String
 }
 
 /// hook が記録する状態。
 enum SessionState: String {
-    case waiting, subagent, running, completed, unknown
+    case waiting, watching, subagent, running, completed, unknown
 
     var label: String {
         switch self {
         case .waiting: "質問中"
+        case .watching: "待受中"
         case .subagent: "サブ待ち"
         case .running: "実行中"
         case .completed: "完了"
@@ -93,7 +118,7 @@ enum SessionState: String {
 /// 一覧での区分。状態に加えて「更新が止まっている」アイドルを持つ。
 /// 並び順はターミナル版（claude-status-render.sh）と揃えている。
 enum SessionGroup: Int, CaseIterable, Identifiable {
-    case waiting, idle, completed, subagent, running, unknown
+    case waiting, idle, completed, watching, subagent, running, unknown
 
     var id: Int { rawValue }
 
@@ -102,6 +127,7 @@ enum SessionGroup: Int, CaseIterable, Identifiable {
         case .waiting: "質問中"
         case .idle: "アイドル"
         case .completed: "完了"
+        case .watching: "待受中"
         case .subagent: "サブ待ち"
         case .running: "実行中"
         case .unknown: "不明"
@@ -113,6 +139,7 @@ enum SessionGroup: Int, CaseIterable, Identifiable {
         case .waiting: "exclamationmark.bubble.fill"
         case .idle: "moon.zzz.fill"
         case .completed: "checkmark.circle.fill"
+        case .watching: "antenna.radiowaves.left.and.right"
         case .subagent: "person.2.fill"
         case .running: "circle.dotted.circle"
         case .unknown: "questionmark.circle.fill"
@@ -124,6 +151,7 @@ enum SessionGroup: Int, CaseIterable, Identifiable {
         case .waiting: .orange
         case .idle: .gray
         case .completed: .green
+        case .watching: .blue
         case .subagent: .purple
         case .running: .cyan
         case .unknown: .pink
@@ -138,6 +166,7 @@ enum SessionGroup: Int, CaseIterable, Identifiable {
         }
         switch state {
         case .waiting: return .waiting
+        case .watching: return .watching
         case .subagent: return .subagent
         case .running: return .running
         case .completed: return .completed

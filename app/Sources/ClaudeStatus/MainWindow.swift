@@ -260,6 +260,12 @@ private struct SessionRow: View {
                         .foregroundStyle(SessionGroup.subagent.color)
                         .lineLimit(1)
                 }
+                ForEach(session.watches, id: \.kind) { w in
+                    Label("\(w.kind) \(w.count)件", systemImage: SessionGroup.watching.symbol)
+                        .font(.system(size: 11))
+                        .foregroundStyle(SessionGroup.watching.color)
+                        .lineLimit(1)
+                }
             }
         }
         .padding(.vertical, 9)
