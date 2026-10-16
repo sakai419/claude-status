@@ -5,9 +5,8 @@ import SwiftUI
 /// ↑↓ / j k で選択を動かせる（ターミナル版の cs と同じキー）。
 /// 右ペインは、待ち時間用のミニゲームにも切り替えられる。
 struct MainWindow: View {
-    static let id = "main"
-
     let store: SessionStore
+    let windows: WindowManager
     @State private var selectedID: String?
     @State private var playing = false
     @State private var game = Game2048()
@@ -23,7 +22,7 @@ struct MainWindow: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            SessionListPane(store: store, selectedID: $selectedID, playing: $playing)
+            SessionListPane(store: store, windows: windows, selectedID: $selectedID, playing: $playing)
                 .frame(width: 360)
             Rectangle().fill(Theme.line).frame(width: 1)
             Group {
@@ -88,6 +87,7 @@ private struct EmptyDetail: View {
 
 private struct SessionListPane: View {
     let store: SessionStore
+    @Bindable var windows: WindowManager
     @Binding var selectedID: String?
     @Binding var playing: Bool
 
@@ -135,6 +135,12 @@ private struct SessionListPane: View {
                 CountChip(group: entry.group, count: entry.sessions.count)
             }
             Spacer(minLength: 0)
+            IconButton(symbol: windows.pinned ? "pin.fill" : "pin",
+                       help: windows.pinned ? "固定をやめる（よそをクリックしたら引っ込める）"
+                                            : "固定する（よそをクリックしても引っ込めない）") {
+                windows.pinned.toggle()
+            }
+            IconButton(symbol: "gearshape", help: "設定（⌘,）") { windows.showSettings() }
             IconButton(symbol: playing ? "gamecontroller.fill" : "gamecontroller",
                        help: playing ? "詳細に戻る" : "ミニゲーム（2048）") { playing.toggle() }
         }
@@ -225,7 +231,7 @@ private struct SessionRow: View {
                             .background(Color.white.opacity(0.08), in: Capsule())
                     }
                     Spacer(minLength: 4)
-                    Text(relativeTime(from: session.updatedDate, now: store.now))
+                    RelativeTimeText(store: store, date: session.updatedDate)
                         .font(.system(size: 11).monospacedDigit())
                         .foregroundStyle(Theme.textTertiary)
                 }

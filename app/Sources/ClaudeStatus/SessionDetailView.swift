@@ -74,7 +74,7 @@ struct SessionDetailView: View {
             .padding(.vertical, 3)
             .background(group.color.opacity(0.14), in: Capsule())
 
-            Text("\(relativeTime(from: session.updatedDate, now: store.now))に更新")
+            RelativeTimeText(store: store, date: session.updatedDate, suffix: "に更新")
                 .font(.system(size: 11.5))
                 .foregroundStyle(Theme.textTertiary)
 

@@ -2,24 +2,43 @@ import SwiftUI
 
 @main
 struct ClaudeStatusApp: App {
-    @State private var store = SessionStore()
+    @NSApplicationDelegateAdaptor private var app: AppDelegate
 
     var body: some Scene {
-        Window("Claude Status", id: MainWindow.id) {
-            MainWindow(store: store)
-        }
-        .windowStyle(.hiddenTitleBar)
-        .windowBackgroundDragBehavior(.enabled)
-        .defaultSize(width: 980, height: 640)
-        .windowResizability(.contentMinSize)
-
-        // メニューバーには件数だけ出し、クリックでウィンドウを呼び出せるようにする
+        // メインウィンドウと設定は AppKit のウィンドウ（WindowManager）。メニューバーには件数だけ出す
         MenuBarExtra {
-            StatusMenu(store: store)
+            StatusMenu(store: app.store, windows: app.windows)
         } label: {
-            MenuBarLabel(store: store)
+            MenuBarLabel(store: app.store)
         }
         .menuBarExtraStyle(.menu)
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("設定…") { app.windows.showSettings() }
+                    .keyboardShortcut(",")
+            }
+        }
+    }
+}
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    let store: SessionStore
+    let windows: WindowManager
+
+    override init() {
+        store = SessionStore()
+        windows = WindowManager(store: store)
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        windows.show()
+    }
+
+    /// Dock のアイコンを押したとき
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        windows.show()
+        return false
     }
 }
 
@@ -44,14 +63,13 @@ struct MenuBarLabel: View {
 
 struct StatusMenu: View {
     let store: SessionStore
-    @Environment(\.openWindow) private var openWindow
+    let windows: WindowManager
 
     var body: some View {
-        Button("ウィンドウを開く") {
-            openWindow(id: MainWindow.id)
-            NSApp.activate()
-        }
-        .keyboardShortcut("o")
+        Button("ウィンドウを開く") { windows.show() }
+            .keyboardShortcut("o")
+        Button("設定…") { windows.showSettings() }
+            .keyboardShortcut(",")
         Divider()
         if store.sessions.isEmpty {
             Text("動いているセッションはありません")

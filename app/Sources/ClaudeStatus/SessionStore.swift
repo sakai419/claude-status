@@ -7,7 +7,19 @@ import Observation
 @Observable
 final class SessionStore {
     private(set) var sessions: [Session] = []
+    /// 表示順に並べた区分ごとのセッション。空の区分は含めない。中身が変わったときだけ入れ替える。
+    private(set) var grouped: [SessionGroupEntry] = []
+    /// 相対時刻の表示に使う今の時刻。刻むのはウィンドウが見えている間だけ。
     private(set) var now = Date()
+
+    /// ウィンドウが見えている間 true にする。相対時刻を刻み続けるかどうか。
+    var clockRunning = false {
+        didSet {
+            guard clockRunning != oldValue else { return }
+            if clockRunning { tick() }
+            scheduleTimer()
+        }
+    }
 
     /// 更新がこれだけ止まったらアイドル扱い（ターミナル版の CS_IDLE_SECS と同じ既定値）
     let idleAfter: TimeInterval = 1800
@@ -22,15 +34,28 @@ final class SessionStore {
         let env = ProcessInfo.processInfo.environment["CS_STATUS_ROOT"]
         root = URL(fileURLWithPath: env ?? NSHomeDirectory() + "/.claude/status")
         reload()
-        // 変化はディレクトリ監視で拾う。監視が張れない間（ディレクトリがまだ無い等）と
-        // 相対時刻の更新のために、2秒ごとにも読み直す（ファイルは数KBなので軽い）。
-        timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.reload() }
+        scheduleTimer()
+    }
+
+    /// 変化はディレクトリ監視で拾う（hook の書き込みは mv / rm なので必ずディレクトリに出る）。
+    /// タイマーは、相対時刻を刻む（見えている間だけ1秒ごと）のと、
+    /// アイドルへの移り変わり・監視が張れない間（ディレクトリがまだ無い等）の読み直しのため（見えていなければ1分ごと）。
+    private func scheduleTimer() {
+        timer?.invalidate()
+        let timer = Timer(timeInterval: clockRunning ? 1 : 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
         }
+        timer.tolerance = clockRunning ? 0.2 : 10
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    private func tick() {
+        if clockRunning { now = Date() }
+        if watcher == nil { reload() } else { regroup() }
     }
 
     func reload() {
-        now = Date()
         watchIfNeeded()
         let fm = FileManager.default
         let files = (try? fm.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: nil)) ?? []
@@ -45,23 +70,29 @@ final class SessionStore {
         }
         loaded.sort { $0.updatedEpoch > $1.updatedEpoch }
         if loaded != sessions { sessions = loaded }
+        regroup()
+    }
+
+    /// 区分分けをやり直す。アイドル扱いは時刻で変わるので、表示用の now ではなく本当の今で決める。
+    private func regroup() {
+        let current = Date()
+        let byGroup = Dictionary(grouping: sessions) {
+            SessionGroup.of($0, now: current, idleAfter: idleAfter)
+        }
+        let next = SessionGroup.allCases.compactMap { g in
+            byGroup[g].map { SessionGroupEntry(group: g, sessions: $0) }
+        }
+        // 見ているビュー（メニューバーのアイコンも含む）を、変わったときだけ描き直させる
+        if next != grouped { grouped = next }
     }
 
     func group(of session: Session) -> SessionGroup {
-        SessionGroup.of(session, now: now, idleAfter: idleAfter)
-    }
-
-    /// 表示順に並べた区分ごとのセッション。空の区分は含めない。
-    var grouped: [(group: SessionGroup, sessions: [Session])] {
-        let byGroup = Dictionary(grouping: sessions) { group(of: $0) }
-        return SessionGroup.allCases.compactMap { g in
-            guard let list = byGroup[g], !list.isEmpty else { return nil }
-            return (g, list)
-        }
+        grouped.first { $0.sessions.contains { $0.id == session.id } }?.group
+            ?? SessionGroup.of(session, now: Date(), idleAfter: idleAfter)
     }
 
     func count(_ g: SessionGroup) -> Int {
-        sessions.filter { group(of: $0) == g }.count
+        grouped.first { $0.group == g }?.sessions.count ?? 0
     }
 
     /// 一覧から外す。JSON を消して status.md も作り直す（ターミナル版の x と同じ）。
@@ -103,6 +134,11 @@ final class SessionStore {
         source.resume()
         watcher = source
     }
+}
+
+struct SessionGroupEntry: Equatable {
+    let group: SessionGroup
+    let sessions: [Session]
 }
 
 enum Shell {

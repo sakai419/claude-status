@@ -146,6 +146,17 @@ enum SessionGroup: Int, CaseIterable, Identifiable {
     }
 }
 
+/// 相対時刻の表示。時刻が刻まれるたびに、行や詳細の全体ではなくこの文字だけを描き直す。
+struct RelativeTimeText: View {
+    let store: SessionStore
+    let date: Date
+    var suffix = ""
+
+    var body: some View {
+        Text(relativeTime(from: date, now: store.now) + suffix)
+    }
+}
+
 /// 「3分前」のような相対時刻。ターミナル版と同じ刻み。
 func relativeTime(from date: Date, now: Date) -> String {
     let d = Int(now.timeIntervalSince(date))
