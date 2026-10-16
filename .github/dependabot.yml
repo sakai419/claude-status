@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # 公開直後の版は入れず、1 週間様子を見てから更新する (脆弱性修正の更新はこの待ち時間の対象外)。
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
