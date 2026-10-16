@@ -144,6 +144,15 @@ final class WindowManager {
         panel.contentView = NSHostingView(rootView: MainWindow(store: store, windows: self))
         if !panel.setFrameUsingName(Self.frameName) { panel.center() }
         panel.setFrameAutosaveName(Self.frameName)
+        // 見えている間だけ相対時刻を刻む（引っ込めた・閉じた・他のウィンドウに完全に隠れた間は止める）
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification, object: panel, queue: .main
+        ) { [weak self, weak panel] _ in
+            MainActor.assumeIsolated {
+                guard let self, let panel else { return }
+                self.store.clockRunning = panel.occlusionState.contains(.visible)
+            }
+        }
         return panel
     }
 

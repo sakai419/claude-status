@@ -22,7 +22,13 @@ enum Transcript {
         return nil
     }
 
+    /// JSONSerialization が作るオブジェクトは autorelease されるので、読み終えたらその場で手放す
+    /// （バックグラウンドのタスクではプールがすぐには空かず、読み直すたびに数MBずつ溜まっていた）
     static func replies(at path: String) -> [String] {
+        autoreleasepool { readReplies(at: path) }
+    }
+
+    private static func readReplies(at path: String) -> [String] {
         guard let handle = FileHandle(forReadingAtPath: path) else { return [] }
         defer { try? handle.close() }
         let size = (try? handle.seekToEnd()) ?? 0

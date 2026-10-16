@@ -231,7 +231,7 @@ private struct SessionRow: View {
                             .background(Color.white.opacity(0.08), in: Capsule())
                     }
                     Spacer(minLength: 4)
-                    Text(relativeTime(from: session.updatedDate, now: store.now))
+                    RelativeTimeText(store: store, date: session.updatedDate)
                         .font(.system(size: 11).monospacedDigit())
                         .foregroundStyle(Theme.textTertiary)
                 }
