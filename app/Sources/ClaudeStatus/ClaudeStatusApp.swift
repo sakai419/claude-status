@@ -2,45 +2,51 @@ import SwiftUI
 
 @main
 struct ClaudeStatusApp: App {
-    @State private var store = SessionStore()
-    @State private var windows = WindowManager()
+    @NSApplicationDelegateAdaptor private var app: AppDelegate
 
     var body: some Scene {
-        Window("Claude Status", id: MainWindow.id) {
-            MainWindow(store: store, windows: windows)
-        }
-        .windowStyle(.hiddenTitleBar)
-        .windowBackgroundDragBehavior(.enabled)
-        .defaultSize(width: 980, height: 640)
-        .windowResizability(.contentMinSize)
-
-        // メニューバーには件数だけ出し、クリックでウィンドウを呼び出せるようにする
+        // メインウィンドウと設定は AppKit のウィンドウ（WindowManager）。メニューバーには件数だけ出す
         MenuBarExtra {
-            StatusMenu(store: store, windows: windows)
+            StatusMenu(store: app.store, windows: app.windows)
         } label: {
-            MenuBarLabel(store: store, windows: windows)
+            MenuBarLabel(store: app.store)
         }
         .menuBarExtraStyle(.menu)
-
-        Settings {
-            SettingsView(windows: windows)
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("設定…") { app.windows.showSettings() }
+                    .keyboardShortcut(",")
+            }
         }
     }
 }
 
-/// メニューバーのアイコン。手当てが要るもの（質問中）を最優先で数字付きで出す。
-/// メニューバーは常に出ているので、ウィンドウを閉じた後でも開き直せるよう、ここから開く手段を渡す。
-struct MenuBarLabel: View {
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
     let store: SessionStore
     let windows: WindowManager
-    @Environment(\.openWindow) private var openWindow
 
-    var body: some View {
-        icon.onAppear { windows.setOpenWindow(openWindow) }
+    override init() {
+        store = SessionStore()
+        windows = WindowManager(store: store)
     }
 
-    @ViewBuilder
-    private var icon: some View {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        windows.show()
+    }
+
+    /// Dock のアイコンを押したとき
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        windows.show()
+        return false
+    }
+}
+
+/// メニューバーのアイコン。手当てが要るもの（質問中）を最優先で数字付きで出す。
+struct MenuBarLabel: View {
+    let store: SessionStore
+
+    var body: some View {
         let waiting = store.count(.waiting)
         let active = store.count(.running) + store.count(.subagent)
         if waiting > 0 {
@@ -57,18 +63,13 @@ struct MenuBarLabel: View {
 
 struct StatusMenu: View {
     let store: SessionStore
-    @Bindable var windows: WindowManager
-    @Environment(\.openSettings) private var openSettings
+    let windows: WindowManager
 
     var body: some View {
         Button("ウィンドウを開く") { windows.show() }
             .keyboardShortcut("o")
-        Toggle("オーバーレイで表示", isOn: $windows.overlay)
-        Button("設定…") {
-            openSettings()
-            NSApp.activate()
-        }
-        .keyboardShortcut(",")
+        Button("設定…") { windows.showSettings() }
+            .keyboardShortcut(",")
         Divider()
         if store.sessions.isEmpty {
             Text("動いているセッションはありません")

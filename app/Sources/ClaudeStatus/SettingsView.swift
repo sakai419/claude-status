@@ -2,7 +2,7 @@ import AppKit
 import Carbon.HIToolbox
 import SwiftUI
 
-/// 設定ウィンドウ（⌘,）。ウィンドウを呼び出すショートカットと、オーバーレイ表示。
+/// 設定ウィンドウ（⌘,）。ウィンドウを呼び出すショートカットと、ウィンドウの出し方。
 struct SettingsView: View {
     @Bindable var windows: WindowManager
 
@@ -18,24 +18,23 @@ struct SettingsView: View {
                         .foregroundStyle(.red)
                 }
             } footer: {
-                Text("どのアプリを使っていても、このキーでウィンドウを前に出せます。前に出ているときに押すと引っ込みます。")
+                Text("どのアプリを使っていても（フルスクリーンでも）、このキーでいま見ている画面の手前にウィンドウを出せます。前に出ているときに押すと引っ込みます。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             Section {
-                Toggle("オーバーレイで表示", isOn: $windows.overlay)
+                Toggle("よそをクリックしても引っ込めない", isOn: $windows.pinned)
                 LabeledContent("不透明度") {
                     HStack {
-                        Slider(value: $windows.overlayOpacity, in: 0.3...1)
-                        Text("\(Int((windows.overlayOpacity * 100).rounded()))%")
+                        Slider(value: $windows.opacity, in: 0.3...1)
+                        Text("\(Int((windows.opacity * 100).rounded()))%")
                             .monospacedDigit()
                             .frame(width: 40, alignment: .trailing)
                     }
                 }
-                .disabled(!windows.overlay)
             } footer: {
-                Text("他のウィンドウより常に手前に出し、どのデスクトップにも表示します。")
+                Text("ウィンドウは他のウィンドウより常に手前に出ます。固定は一覧の右上のピンでも切り替えられます。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -43,7 +42,6 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 460)
         .fixedSize()
-        .background(WindowReader { windows.attachSettings($0) })
     }
 }
 

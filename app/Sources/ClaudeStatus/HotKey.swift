@@ -9,24 +9,11 @@ struct KeyCombo: Codable, Equatable {
     /// 記録したときのキーの表示（"S"、"Space" など）
     var key: String
 
-    private var flags: NSEvent.ModifierFlags { NSEvent.ModifierFlags(rawValue: modifiers) }
+    /// 何も登録していないときに使う ⌥S
+    static let defaultShortcut = KeyCombo(keyCode: UInt16(kVK_ANSI_S),
+                                          modifiers: NSEvent.ModifierFlags.option.rawValue, key: "S")
 
-    /// 押されたキーから作る。修飾キーなしでは他のアプリの入力を奪ってしまうので、
-    /// ⌘ ⌃ ⌥ のどれかを含むもの（F キーは単独でも可）だけを受け付ける。
-    init?(event: NSEvent) {
-        let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
-        let isFunctionKey = Self.functionKeys[Int(event.keyCode)] != nil
-        guard isFunctionKey || !flags.intersection([.command, .control, .option]).isEmpty else { return nil }
-        keyCode = event.keyCode
-        modifiers = flags.rawValue
-        if let name = Self.namedKeys[Int(event.keyCode)] ?? Self.functionKeys[Int(event.keyCode)] {
-            key = name
-        } else if let chars = event.characters(byApplyingModifiers: []), !chars.isEmpty {
-            key = chars.uppercased()
-        } else {
-            return nil
-        }
-    }
+    private var flags: NSEvent.ModifierFlags { NSEvent.ModifierFlags(rawValue: modifiers) }
 
     /// "⌃⌥⌘S" のような表示（修飾キーは macOS のメニューと同じ順に並べる）
     var display: String {
@@ -45,6 +32,25 @@ struct KeyCombo: Codable, Equatable {
         if flags.contains(.option) { m |= optionKey }
         if flags.contains(.shift) { m |= shiftKey }
         return UInt32(m)
+    }
+}
+
+extension KeyCombo {
+    /// 押されたキーから作る。修飾キーなしでは他のアプリの入力を奪ってしまうので、
+    /// ⌘ ⌃ ⌥ のどれかを含むもの（F キーは単独でも可）だけを受け付ける。
+    init?(event: NSEvent) {
+        let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        let isFunctionKey = Self.functionKeys[Int(event.keyCode)] != nil
+        guard isFunctionKey || !flags.intersection([.command, .control, .option]).isEmpty else { return nil }
+        keyCode = event.keyCode
+        modifiers = flags.rawValue
+        if let name = Self.namedKeys[Int(event.keyCode)] ?? Self.functionKeys[Int(event.keyCode)] {
+            key = name
+        } else if let chars = event.characters(byApplyingModifiers: []), !chars.isEmpty {
+            key = chars.uppercased()
+        } else {
+            return nil
+        }
     }
 
     private static let namedKeys: [Int: String] = [

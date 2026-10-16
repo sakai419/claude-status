@@ -5,15 +5,12 @@ import SwiftUI
 /// ↑↓ / j k で選択を動かせる（ターミナル版の cs と同じキー）。
 /// 右ペインは、待ち時間用のミニゲームにも切り替えられる。
 struct MainWindow: View {
-    static let id = "main"
-
     let store: SessionStore
     let windows: WindowManager
     @State private var selectedID: String?
     @State private var playing = false
     @State private var game = Game2048()
     @FocusState private var listFocused: Bool
-    @Environment(\.openWindow) private var openWindow
 
     /// 表示順に並べた全セッション（キー操作の移動先を決めるのに使う）
     private var ordered: [Session] { store.grouped.flatMap(\.sessions) }
@@ -42,7 +39,6 @@ struct MainWindow: View {
         }
         .frame(minWidth: 760, minHeight: 460)
         .background(Theme.background)
-        .background(WindowReader { windows.attach($0) })
         .ignoresSafeArea()
         .environment(\.colorScheme, .dark)
         .focusable()
@@ -54,10 +50,7 @@ struct MainWindow: View {
             move(press.key == .upArrow || press.key == "k" ? -1 : 1)
             return .handled
         }
-        .onAppear {
-            keepSelection()
-            windows.setOpenWindow(openWindow)
-        }
+        .onAppear(perform: keepSelection)
         .onChange(of: store.sessions) { keepSelection() }
         // ゲームを閉じたら、キー操作を一覧に戻す
         .onChange(of: playing) { _, on in if !on { listFocused = true } }
@@ -97,7 +90,6 @@ private struct SessionListPane: View {
     @Bindable var windows: WindowManager
     @Binding var selectedID: String?
     @Binding var playing: Bool
-    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         VStack(spacing: 0) {
@@ -143,11 +135,12 @@ private struct SessionListPane: View {
                 CountChip(group: entry.group, count: entry.sessions.count)
             }
             Spacer(minLength: 0)
-            IconButton(symbol: windows.overlay ? "pin.fill" : "pin",
-                       help: windows.overlay ? "オーバーレイをやめる" : "オーバーレイで表示（常に手前）") {
-                windows.overlay.toggle()
+            IconButton(symbol: windows.pinned ? "pin.fill" : "pin",
+                       help: windows.pinned ? "固定をやめる（よそをクリックしたら引っ込める）"
+                                            : "固定する（よそをクリックしても引っ込めない）") {
+                windows.pinned.toggle()
             }
-            IconButton(symbol: "gearshape", help: "設定（ショートカット・オーバーレイ）") { openSettings() }
+            IconButton(symbol: "gearshape", help: "設定（⌘,）") { windows.showSettings() }
             IconButton(symbol: playing ? "gamecontroller.fill" : "gamecontroller",
                        help: playing ? "詳細に戻る" : "ミニゲーム（2048）") { playing.toggle() }
         }
