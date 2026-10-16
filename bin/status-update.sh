@@ -7,7 +7,10 @@
 #       idle_prompt（メインスレッドがアイドル）→ サブが飛んでいれば subagent、
 #                                                無ければ waiting
 #   - Stop            : background_tasks に走行中のサブエージェントが残っていれば
-#                       status=subagent、無ければ completed（プロンプト/意図は保持）
+#                       status=subagent。サブは無いが、バックグラウンドの shell
+#                       （run_in_background の Bash と Monitor）か session_crons の
+#                       予約が残っていれば status=watching。どれも無ければ completed
+#                       （プロンプト/意図は保持）
 # 既存の通知 hook（stop.sh / notification.sh）とは独立して動く。
 set -euo pipefail
 
@@ -73,6 +76,10 @@ fi
 
 subagents=0
 sub_types=""
+shells=0
+shell_descs=""
+crons=0
+cron_descs=""
 if [ "$event" = "UserPromptSubmit" ]; then
   status="running"
   prompt=$(printf '%s' "$input" | "$JQ" -r '.prompt // ""')
@@ -93,6 +100,24 @@ else
   else
     status="completed"
     sub_types=""
+  fi
+  # バックグラウンドの Bash と Monitor はどちらも type:"shell" で入り、見分けられない。
+  # 終わった shell は通知で次のターンが始まるので、ここに残るのは走行中のものだけだが、
+  # 念のため status が running 以外のものは数えない。
+  shells=$(printf '%s' "$input" | "$JQ" -r '[.background_tasks[]? | select(.type == "shell" and (.status // "running") == "running")] | length' 2>/dev/null || echo 0)
+  case "$shells" in ''|*[!0-9]*) shells=0 ;; esac
+  crons=$(printf '%s' "$input" | "$JQ" -r '[.session_crons[]?] | length' 2>/dev/null || echo 0)
+  case "$crons" in ''|*[!0-9]*) crons=0 ;; esac
+  if [ "$shells" -gt 0 ]; then
+    shell_descs=$(printf '%s' "$input" | "$JQ" -r '[.background_tasks[]? | select(.type == "shell" and (.status // "running") == "running") | (.description // .command // empty)] | join(", ")' 2>/dev/null || echo "")
+  fi
+  if [ "$crons" -gt 0 ]; then
+    cron_descs=$(printf '%s' "$input" | "$JQ" -r '[.session_crons[]? | (.schedule // "") + (if .recurring then " 繰り返し" else "" end)] | join(", ")' 2>/dev/null || echo "")
+  fi
+  # サブ待ちを優先する。サブは放っておけば終わるが、shell / cron の待ち受けは
+  # 外からのイベント次第なので、サブが残っている間はそちらの表示に任せる。
+  if [ "$status" = "completed" ] && [ $((shells + crons)) -gt 0 ]; then
+    status="watching"
   fi
   prompt=""
   if [ ! -f "$sfile" ] && [ -n "$tpath" ] && [ -f "$tpath" ]; then
@@ -126,8 +151,10 @@ filter='.session_id = $sid | .cwd = $cwd | .status = $status | .updated_at = $ts
 # 他イベントで代入すると、飛んでいるサブを 0 件に潰してしまうため既存値を保持する。
 if [ "$event" = "UserPromptSubmit" ] || [ "$event" = "Notification" ]; then
   filter="$filter"' | .subagent_count = (.subagent_count // 0) | .subagent_types = (.subagent_types // "")'
+  filter="$filter"' | .shell_count = (.shell_count // 0) | .shell_descs = (.shell_descs // "") | .cron_count = (.cron_count // 0) | .cron_descs = (.cron_descs // "")'
 else
   filter="$filter"' | .subagent_count = $subagents | .subagent_types = $subtypes'
+  filter="$filter"' | .shell_count = $shells | .shell_descs = $shelldescs | .cron_count = $crons | .cron_descs = $crondescs'
 fi
 if [ "$event" = "UserPromptSubmit" ]; then
   filter="$filter"' | .last_prompt = $prompt'
@@ -147,6 +174,10 @@ printf '%s' "$base" | "$JQ" \
   --arg tpath "$tpath" \
   --arg subtypes "$sub_types" \
   --argjson subagents "$subagents" \
+  --arg shelldescs "$shell_descs" \
+  --argjson shells "$shells" \
+  --arg crondescs "$cron_descs" \
+  --argjson crons "$crons" \
   --argjson epoch "$epoch" \
   "$filter" \
   > "$sfile.tmp.$$" && mv "$sfile.tmp.$$" "$sfile"
