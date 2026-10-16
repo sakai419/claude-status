@@ -1,0 +1,48 @@
+name: ci
+
+# hooks・ビューア (bin/, shell/, install.sh) の静的検査と、デスクトップアプリ (app/) のビルド確認。
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+# 同じブランチで走っている古い実行は、PR なら取り消す (main への push は取り消さない)。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: shellcheck
+        run: shellcheck --severity=warning --external-sources --source-path=bin bin/*.sh install.sh uninstall.sh app/build.sh
+
+      - name: zsh の構文
+        run: |
+          sudo apt-get install -y --no-install-recommends zsh
+          zsh -n shell/cs.zsh
+
+      - name: Python の構文
+        run: python3 -c 'import ast, sys; [ast.parse(open(p).read(), p) for p in sys.argv[1:]]' bin/*.py
+
+  app:
+    name: app
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: swift build
+        run: swift build -c release --package-path app
