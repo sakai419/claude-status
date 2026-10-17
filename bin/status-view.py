@@ -22,7 +22,12 @@
   生き続けて PID ベースの reap では消えないため、その手動版として用意している
 - プロセスは殺さない。消した後もそのセッションが動けば、次の hook でまた現れる
 
-キー: ↑↓/jk 移動 · Enter 詳細/戻る · Space/b ページ · x 一覧から消す · Esc 戻る（一覧では終了） · q 終了
+キープ（p）
+- 選択中のセッションにキープの印を付ける・外す（JSON の kept）。あえて残しているアイドルを
+  アイドルから分けて、その直後の「📌 キープ」にまとめる
+- 印は外すまで残る。再開して動いている間は元の状態のセクションに 📌 付きで出る
+
+キー: ↑↓/jk 移動 · Enter 詳細/戻る · Space/b ページ · p キープ · x 一覧から消す · Esc 戻る（一覧では終了） · q 終了
 
 セッションの一覧と表示順は claude-status-render.sh が書く status.index.json から取る。
 「status.md の N 番目のブロック＝索引の N 番目」という対応で突き合わせる。
@@ -77,6 +82,8 @@ STATUS_LOOK = {
 # アイドルは状態そのものではなく「更新が止まっている」という表示上の降格。
 # 元の状態は claude-status-render.sh と同じく添えて出す。
 IDLE_LOOK = ("💤", "アイドル", "90")
+# アイドルのうちキープの印が付いたもの。
+KEEP_LOOK = ("📌", "キープ", "94")
 
 # 曖昧幅の文字を何セルで描くか。起動時に端末へ実測して上書きする。
 # 実測できない環境では従来の想定値 2 を使う。
@@ -377,6 +384,43 @@ def dismiss(session_id):
         pass
 
 
+def set_kept(session_id, kept):
+    """キープの印を付ける・外す。updated_epoch には触れないので、アイドルかどうかは変わらない。"""
+    sid = os.path.basename(session_id or "")
+    if not sid:
+        return
+    path = os.path.join(SESSIONS, sid + ".json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return
+    if not isinstance(data, dict):
+        return
+    if kept:
+        data["kept"] = True
+    else:
+        data.pop("kept", None)
+    # hook と同じく tmp→mv で置き換え、自分だけが読める権限で作る
+    tmp = "%s.tmp.%d" % (path, os.getpid())
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, ensure_ascii=False)
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return
+    try:
+        subprocess.run([RENDER], timeout=10,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+
 def rel_time(epoch, now):
     d = int(now - (epoch or 0))
     if d < 0:
@@ -395,7 +439,10 @@ def detail_body(entry, width):
     status = entry.get("status") or ""
     icon, label, color = STATUS_LOOK.get(status, ("❔", status or "不明", "35"))
     if entry.get("idle"):
-        icon, label, color = IDLE_LOOK[0], "%s（%s）" % (IDLE_LOOK[1], label), IDLE_LOOK[2]
+        look = KEEP_LOOK if entry.get("kept") else IDLE_LOOK
+        icon, label, color = look[0], "%s（%s）" % (look[1], label), look[2]
+    elif entry.get("kept"):
+        label += " 📌"
     head = "\x1b[1;%sm" % color
 
     cwd = entry.get("cwd") or ""
@@ -464,7 +511,7 @@ def footer(mode, cols, sel, total, pending=False):
     if mode == "detail":
         hint = " ↑↓/jk スクロール · Space/b ページ · g/G 先頭/末尾 · Esc 一覧へ · q 終了"
     elif total:
-        hint = " ↑↓/jk 選択 (%d/%d) · Enter 詳細 · x 消す · q 終了" % (sel + 1, total)
+        hint = " ↑↓/jk 選択 (%d/%d) · Enter 詳細 · p キープ · x 消す · q 終了" % (sel + 1, total)
     else:
         hint = " q 終了"
     return fit(DIM + hint + RESET, cols)
@@ -625,6 +672,8 @@ def main():
                 if mode == "list":
                     if key in (b"x", b"X") and sel is not None:
                         pending = True
+                    elif key in (b"p", b"P") and sel is not None:
+                        set_kept(sel_id, not usable[sel].get("kept"))
                     elif key in (b"j", b"DOWN") and sel is not None:
                         sel_id = ids[min(sel + 1, len(ids) - 1)]
                     elif key in (b"k", b"UP") and sel is not None:

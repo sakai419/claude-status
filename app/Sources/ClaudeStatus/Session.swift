@@ -18,6 +18,8 @@ struct Session: Identifiable, Hashable {
     let cronCount: Int
     let cronDescs: String
     let lastPrompt: String
+    /// あえて残しているという手動の印。アイドルになるとアイドルではなくキープに入る。
+    let kept: Bool
 
     init?(json: [String: Any]) {
         func str(_ key: String) -> String {
@@ -50,6 +52,7 @@ struct Session: Identifiable, Hashable {
         cronCount = Int(num("cron_count"))
         cronDescs = str("cron_descs")
         lastPrompt = str("last_prompt")
+        kept = (json["kept"] as? Bool) ?? false
     }
 
     /// cwd の末尾（プロジェクト名）。ホームディレクトリそのものは ~ と出す。
@@ -115,10 +118,10 @@ enum SessionState: String {
     }
 }
 
-/// 一覧での区分。状態に加えて「更新が止まっている」アイドルを持つ。
+/// 一覧での区分。状態に加えて「更新が止まっている」アイドルと、そのうち印の付いたキープを持つ。
 /// 並び順はターミナル版（claude-status-render.sh）と揃えている。
 enum SessionGroup: Int, CaseIterable, Identifiable {
-    case waiting, idle, completed, watching, subagent, running, unknown
+    case waiting, idle, kept, completed, watching, subagent, running, unknown
 
     var id: Int { rawValue }
 
@@ -126,6 +129,7 @@ enum SessionGroup: Int, CaseIterable, Identifiable {
         switch self {
         case .waiting: "質問中"
         case .idle: "アイドル"
+        case .kept: "キープ"
         case .completed: "完了"
         case .watching: "待受中"
         case .subagent: "サブ待ち"
@@ -138,6 +142,8 @@ enum SessionGroup: Int, CaseIterable, Identifiable {
         switch self {
         case .waiting: "exclamationmark.bubble.fill"
         case .idle: "moon.zzz.fill"
+        // ピンはウィンドウ固定のボタンと紛らわしいので、しおりにする
+        case .kept: "bookmark.fill"
         case .completed: "checkmark.circle.fill"
         case .watching: "antenna.radiowaves.left.and.right"
         case .subagent: "person.2.fill"
@@ -150,6 +156,7 @@ enum SessionGroup: Int, CaseIterable, Identifiable {
         switch self {
         case .waiting: .orange
         case .idle: .gray
+        case .kept: .indigo
         case .completed: .green
         case .watching: .blue
         case .subagent: .purple
@@ -162,7 +169,7 @@ enum SessionGroup: Int, CaseIterable, Identifiable {
         let state = session.state
         // 質問中は手当てが必要なのでアイドルに降格しない
         if state != .waiting, now.timeIntervalSince(session.updatedDate) >= idleAfter {
-            return .idle
+            return session.kept ? .kept : .idle
         }
         switch state {
         case .waiting: return .waiting

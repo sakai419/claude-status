@@ -66,7 +66,7 @@ struct SessionDetailView: View {
         HStack(spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: group.symbol)
-                Text(group == .idle ? "アイドル（\(session.state.label)）" : group.title)
+                Text(group == .idle || group == .kept ? "\(group.title)（\(session.state.label)）" : group.title)
             }
             .font(.system(size: 11.5, weight: .semibold))
             .foregroundStyle(group.color)
@@ -87,6 +87,10 @@ struct SessionDetailView: View {
                 Button("やめる") { confirming = false }.controlSize(.small)
                 Button("消す", role: .destructive) { store.dismiss(session) }.controlSize(.small)
             } else {
+                IconButton(symbol: session.kept ? "bookmark.fill" : "bookmark",
+                           help: session.kept ? "キープを外す" : "キープする（アイドルになってもキープにまとめる）") {
+                    store.setKept(session, !session.kept)
+                }
                 IconButton(symbol: "xmark", help: "一覧から消す") { confirming = true }
             }
         }
