@@ -2,7 +2,7 @@
 # 全セッションのJSONを集約して ~/.claude/status/status.md を再生成する。
 # status-update.sh / status-resume.sh / claude-intent.sh から呼ばれる共通レンダラ。
 #
-# 並び順は「⚠️ 質問中 → 💤 アイドル → ✅ 完了 → 📡 待受中 → 🟣 サブ待ち → 🔵 実行中」の6セクション。
+# 並び順は「⚠️ 質問中 → 💤 アイドル → 📌 キープ → ✅ 完了 → 📡 待受中 → 🟣 サブ待ち → 🔵 実行中」の7セクション。
 # 手当てが必要なものを上に、放っておいてよいものを下に置く。
 # サブ待ちは Stop 後もサブエージェントの完了を待って止まっている状態。放置すれば
 # 進むので下寄りだが、完全に自走している実行中よりは気に掛ける必要があるため間に置く。
@@ -15,6 +15,10 @@
 # PID ベースの reap（reap-dead-sessions.sh）では消えない。放置されたまま完了・実行中に
 # 居座るのを避けるため、状態を問わずここへ降格させる（質問中だけは手当て対象なので除く）。
 # 降格は表示上の扱いだけで JSON は消さない。一覧から消したい場合は status-view.py の x キー。
+#
+# キープは、アイドルのうち手動で印（JSON の kept）を付けたセッション。あえて残していると
+# 判断済みなので、片付けるか決めるアイドルとは分けてその直後に置く。印は外すまで残り、
+# 再開して動いている間は元の状態のセクションに 📌 付きで出る。
 #
 # 出力には ANSI エスケープ（色・太字）を埋め込む。status-view.py がエスケープを
 # 幅0として扱い、非TTY出力時には除去する。
@@ -100,14 +104,17 @@ done
       def is_idle($now): (($now - (.updated_epoch // 0)) >= $idle) and ((.status // "") != "waiting");
 
       # 1セッション分のブロック。左端に状態色の縦バーを引いて視覚的にまとめる。
-      # $showstate=true のときはプロジェクト名の後ろに元の状態を添える（アイドル用）。
+      # $showstate=true のときはプロジェクト名の後ろに元の状態を添える（アイドル・キープ用）。
+      # それ以外のセクションでも、キープの印が付いていれば 📌 を添える。
       def entry($col; $now; $showstate):
         ( .cwd | clean ) as $cwd
         | ( $cwd | tilde ) as $dir
         | ( $dir | split("/") ) as $p
         | ( $p | last ) as $proj
         | ( if ($p | length) > 1 then (($p | .[0:-1] | join("/")) + "/") else "" end ) as $pfx
-        | ( if $showstate then "  \(dim)· \(slabel(.status // ""))\(r)" else "" end ) as $sfx
+        | ( if $showstate then "  \(dim)· \(slabel(.status // ""))\(r)"
+            elif (.kept // false) == true then "  📌"
+            else "" end ) as $sfx
         | ($now - (.updated_epoch // 0)) as $d
         | "  \(bar($col)) \(dim)\($pfx)\(r)\(bold)\($proj)\(r)\($sfx)",
           "  \(bar($col)) \(dim)直近\(r) \(short(.last_prompt; 30))",
@@ -138,7 +145,9 @@ done
 
       . as $all
       | [ $all[] | select(is_idle($now) | not) ] as $rows
-      | ( [ $all[] | select(is_idle($now)) ] | sort_by(-(.updated_epoch // 0)) ) as $idles
+      | ( [ $all[] | select(is_idle($now)) ] | sort_by(-(.updated_epoch // 0)) ) as $stopped
+      | [ $stopped[] | select((.kept // false) != true) ] as $idles
+      | [ $stopped[] | select((.kept // false) == true) ] as $kept
       | ["waiting", "completed", "watching", "subagent", "running"] as $known
       | [ $rows[] | (.status // "") as $s | select($known | index($s) | not) ] as $other
       | "\(bold) CLAUDE CODE STATUS\(r)  \(dim)· \($all | length) セッション · 更新 \($nowh)\(r)",
@@ -149,6 +158,11 @@ done
           else
             "\(c("90"))💤 アイドル\(r)  \(dim)— \($idles | length)\(r)",
             ( $idles[] | entry("90"; $now; true) )
+          end ),
+        ( if ($kept | length) == 0 then empty
+          else
+            "\(c("94"))📌 キープ\(r)  \(dim)— \($kept | length)\(r)",
+            ( $kept[] | entry("94"; $now; true) )
           end ),
         section($rows; "completed"; "✅"; "完了";     "32"; $now),
         section($rows; "watching";  "📡"; "待受中";   "34"; $now),
@@ -166,26 +180,29 @@ done
 mv "$OUT.tmp.$$" "$OUT"
 
 # 表示順そのままのセッション索引。status-view.py が「N番目のブロック＝索引のN番目」
-# として突き合わせ、選択・詳細表示に使う。idle は表示側の降格判定と同じ基準。
+# として突き合わせ、選択・詳細表示に使う。idle は表示側の降格判定と同じ基準で、
+# idle かつ kept のものがキープのセクションに入る。
 if [ -z "$valid_json" ]; then
   printf '[]\n' > "$IDX.tmp.$$"
 else
   printf '%s' "$valid_json" | "$JQ" -s --argjson now "$now" --argjson idle "$IDLE" '
     def is_idle: (($now - (.updated_epoch // 0)) >= $idle) and ((.status // "") != "waiting");
-    def rank($idle_flag; $s):
-      if   $s == "waiting"   then 0
-      elif $idle_flag        then 1
-      elif $s == "completed" then 2
-      elif $s == "watching"  then 3
-      elif $s == "subagent"  then 4
-      elif $s == "running"   then 5
-      else 6 end;
-    map(. + { _idle: is_idle })
-    | sort_by([ rank(._idle; (.status // "")), -(.updated_epoch // 0) ])
+    def rank($idle_flag; $kept; $s):
+      if   $s == "waiting"           then 0
+      elif $idle_flag and ($kept | not) then 1
+      elif $idle_flag                then 2
+      elif $s == "completed"         then 3
+      elif $s == "watching"          then 4
+      elif $s == "subagent"          then 5
+      elif $s == "running"           then 6
+      else 7 end;
+    map(. + { _idle: is_idle, _kept: ((.kept // false) == true) })
+    | sort_by([ rank(._idle; ._kept; (.status // "")), -(.updated_epoch // 0) ])
     | map({
         session_id:      (.session_id // ""),
         status:          (.status // ""),
         idle:            ._idle,
+        kept:            ._kept,
         cwd:             (.cwd // ""),
         last_prompt:     (.last_prompt // ""),
         intent:          (.intent // ""),
