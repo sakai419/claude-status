@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// ~/.claude/status/sessions/*.json を読み、変化を追いかける。
-/// 書き手は hook（シェルスクリプト）だけで、アプリは読むのと「一覧から消す」だけ。
+/// 書き手は hook（シェルスクリプト）で、アプリが書くのは「一覧から消す」とキープの印だけ。
 @MainActor
 @Observable
 final class SessionStore {
@@ -100,6 +100,30 @@ final class SessionStore {
     func dismiss(_ session: Session) {
         let name = (session.id as NSString).lastPathComponent
         try? FileManager.default.removeItem(at: sessionsDir.appendingPathComponent(name + ".json"))
+        reload()
+        if let render = Self.binURL?.appendingPathComponent("claude-status-render.sh") {
+            Task.detached { _ = try? Shell.run(render, arguments: []) }
+        }
+    }
+
+    /// キープの印を付ける・外す（ターミナル版の p と同じ）。
+    /// updated_epoch には触れないので、アイドルかどうかは変わらない。
+    func setKept(_ session: Session, _ kept: Bool) {
+        let name = (session.id as NSString).lastPathComponent
+        let url = sessionsDir.appendingPathComponent(name + ".json")
+        guard let data = try? Data(contentsOf: url),
+              var obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return }
+        if kept { obj["kept"] = true } else { obj.removeValue(forKey: "kept") }
+        guard let out = try? JSONSerialization.data(withJSONObject: obj) else { return }
+        // hook と同じく tmp→mv で置き換え、自分だけが読める権限で作る
+        let tmp = url.path + ".tmp.\(ProcessInfo.processInfo.processIdentifier)"
+        guard FileManager.default.createFile(atPath: tmp, contents: out, attributes: [.posixPermissions: 0o600]),
+              rename(tmp, url.path) == 0
+        else {
+            try? FileManager.default.removeItem(atPath: tmp)
+            return
+        }
         reload()
         if let render = Self.binURL?.appendingPathComponent("claude-status-render.sh") {
             Task.detached { _ = try? Shell.run(render, arguments: []) }

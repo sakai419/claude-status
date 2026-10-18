@@ -20,8 +20,9 @@ SDIR="$HOME/.claude/status/sessions"
 mkdir -p "$SDIR"
 
 # 保険: SessionEnd が発火しなかったセッション（クラッシュ/強制終了）のゴミを掃除。
-# 7日以上更新の無い JSON を削除する。
-find "$SDIR" -name '*.json' -type f -mtime +7 -delete 2>/dev/null || true
+# 7日以上更新の無い JSON を削除する。キープの印が付いたものは残す
+# （プロセスが死んでいれば reap-dead-sessions.sh が消す）。
+find "$SDIR" -name '*.json' -type f -mtime +7 ! -exec grep -Eq '"kept": *true' {} \; -delete 2>/dev/null || true
 
 # PID が既に死んでいるセッション（OS再起動・kill 等で SessionEnd が発火しなかったもの）を掃除。
 # UserPromptSubmit / Stop の両方で呼ばれるため、cs を起動していなくても

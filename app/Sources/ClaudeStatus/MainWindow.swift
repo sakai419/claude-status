@@ -222,13 +222,18 @@ private struct SessionRow: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.text)
                         .lineLimit(1)
-                    if group == .idle {
+                    if group == .idle || group == .kept {
                         Text(session.state.label)
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(Theme.textSecondary)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
                             .background(Color.white.opacity(0.08), in: Capsule())
+                    } else if session.kept {
+                        Image(systemName: SessionGroup.kept.symbol)
+                            .font(.system(size: 10))
+                            .foregroundStyle(SessionGroup.kept.color)
+                            .help("キープ中")
                     }
                     Spacer(minLength: 4)
                     RelativeTimeText(store: store, date: session.updatedDate)
@@ -286,6 +291,7 @@ private struct SessionRow: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(session.cwd, forType: .string)
             }
+            Button(session.kept ? "キープを外す" : "キープする") { store.setKept(session, !session.kept) }
             Divider()
             Button("一覧から消す", role: .destructive) { store.dismiss(session) }
         }
