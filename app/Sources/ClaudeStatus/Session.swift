@@ -167,8 +167,9 @@ enum SessionGroup: Int, CaseIterable, Identifiable {
 
     static func of(_ session: Session, now: Date, idleAfter: TimeInterval) -> SessionGroup {
         let state = session.state
-        // 質問中は手当てが必要なのでアイドルに降格しない
-        if state != .waiting, now.timeIntervalSince(session.updatedDate) >= idleAfter {
+        // 質問中は手当てが必要なのでアイドルに降格しない。待受中は長く止まっているのが本来の姿なので、
+        // 降格させずに経過を添える（StaleNote）
+        if state != .waiting, state != .watching, now.timeIntervalSince(session.updatedDate) >= idleAfter {
             return session.kept ? .kept : .idle
         }
         switch state {
@@ -190,6 +191,19 @@ struct RelativeTimeText: View {
 
     var body: some View {
         Text(relativeTime(from: date, now: store.now) + suffix)
+    }
+}
+
+/// 待受中のまま更新がしきい値を超えて止まっていることを添える。アイドルへの降格の代わり。
+/// 時刻で現れるので、相対時刻と同じく行の全体ではなくこの文字だけを描き直す。
+struct StaleNote: View {
+    let store: SessionStore
+    let session: Session
+
+    var body: some View {
+        if session.state == .watching, store.now.timeIntervalSince(session.updatedDate) >= store.idleAfter {
+            Text("\(Int(store.idleAfter / 60))分以上経過")
+        }
     }
 }
 

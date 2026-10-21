@@ -13,7 +13,8 @@
 # アイドルは「更新が CS_IDLE_SECS 秒以上止まっているセッション」。Desktop から起動した
 # セッションには CLI の exit に相当する操作がなく、閉じるまでプロセスが生き続けるため
 # PID ベースの reap（reap-dead-sessions.sh）では消えない。放置されたまま完了・実行中に
-# 居座るのを避けるため、状態を問わずここへ降格させる（質問中だけは手当て対象なので除く）。
+# 居座るのを避けるため、ここへ降格させる。質問中は手当て対象なので除く。待受中も、外からの
+# イベントを待って長く止まっているのが本来の姿なので降格させず、待受中のまま「N分以上経過」を添える。
 # 降格は表示上の扱いだけで JSON は消さない。一覧から消したい場合は status-view.py の x キー。
 #
 # キープは、アイドルのうち手動で印（JSON の kept）を付けたセッション。あえて残していると
@@ -100,12 +101,16 @@ done
         elif $s == "running"   then "実行中"
         else "不明" end;
 
-      # 更新が $idle 秒以上止まっているセッション。質問中は手当て対象なので降格しない。
-      def is_idle($now): (($now - (.updated_epoch // 0)) >= $idle) and ((.status // "") != "waiting");
+      # 更新が $idle 秒以上止まっているセッション。質問中・待受中は降格しない。
+      def stalled($now): ($now - (.updated_epoch // 0)) >= $idle;
+      def is_idle($now): stalled($now) and ((.status // "") | IN("waiting", "watching") | not);
+      # 降格させない待受中に、しきい値を超えて止まっていることを添える文言。該当しなければ空。
+      def stale_note($now):
+        if (.status // "") == "watching" and stalled($now) then "\(($idle / 60) | floor)分以上経過" else "" end;
 
       # 1セッション分のブロック。左端に状態色の縦バーを引いて視覚的にまとめる。
       # $showstate=true のときはプロジェクト名の後ろに元の状態を添える（アイドル・キープ用）。
-      # それ以外のセクションでも、キープの印が付いていれば 📌 を添える。
+      # それ以外のセクションでも、キープの印が付いていれば 📌 を、待受中が長く止まっていれば経過を添える。
       def entry($col; $now; $showstate):
         ( .cwd | clean ) as $cwd
         | ( $cwd | tilde ) as $dir
@@ -114,7 +119,8 @@ done
         | ( if ($p | length) > 1 then (($p | .[0:-1] | join("/")) + "/") else "" end ) as $pfx
         | ( if $showstate then "  \(dim)· \(slabel(.status // ""))\(r)"
             elif (.kept // false) == true then "  📌"
-            else "" end ) as $sfx
+            else "" end
+            + ( stale_note($now) as $n | if $n == "" then "" else "  \(dim)· \($n)\(r)" end ) ) as $sfx
         | ($now - (.updated_epoch // 0)) as $d
         | "  \(bar($col)) \(dim)\($pfx)\(r)\(bold)\($proj)\(r)\($sfx)",
           "  \(bar($col)) \(dim)直近\(r) \(short(.last_prompt; 30))",
@@ -181,12 +187,15 @@ mv "$OUT.tmp.$$" "$OUT"
 
 # 表示順そのままのセッション索引。status-view.py が「N番目のブロック＝索引のN番目」
 # として突き合わせ、選択・詳細表示に使う。idle は表示側の降格判定と同じ基準で、
-# idle かつ kept のものがキープのセクションに入る。
+# idle かつ kept のものがキープのセクションに入る。stale_note は一覧の行に添える経過の文言。
 if [ -z "$valid_json" ]; then
   printf '[]\n' > "$IDX.tmp.$$"
 else
   printf '%s' "$valid_json" | "$JQ" -s --argjson now "$now" --argjson idle "$IDLE" '
-    def is_idle: (($now - (.updated_epoch // 0)) >= $idle) and ((.status // "") != "waiting");
+    def stalled: ($now - (.updated_epoch // 0)) >= $idle;
+    def is_idle: stalled and ((.status // "") | IN("waiting", "watching") | not);
+    def stale_note:
+      if (.status // "") == "watching" and stalled then "\(($idle / 60) | floor)分以上経過" else "" end;
     def rank($idle_flag; $kept; $s):
       if   $s == "waiting"           then 0
       elif $idle_flag and ($kept | not) then 1
@@ -196,13 +205,14 @@ else
       elif $s == "subagent"          then 5
       elif $s == "running"           then 6
       else 7 end;
-    map(. + { _idle: is_idle, _kept: ((.kept // false) == true) })
+    map(. + { _idle: is_idle, _kept: ((.kept // false) == true), _stale_note: stale_note })
     | sort_by([ rank(._idle; ._kept; (.status // "")), -(.updated_epoch // 0) ])
     | map({
         session_id:      (.session_id // ""),
         status:          (.status // ""),
         idle:            ._idle,
         kept:            ._kept,
+        stale_note:      ._stale_note,
         cwd:             (.cwd // ""),
         last_prompt:     (.last_prompt // ""),
         intent:          (.intent // ""),

@@ -443,6 +443,8 @@ def detail_body(entry, width):
         icon, label, color = look[0], "%s（%s）" % (look[1], label), look[2]
     elif entry.get("kept"):
         label += " 📌"
+    if entry.get("stale_note"):
+        label += " · " + entry["stale_note"]
     head = "\x1b[1;%sm" % color
 
     cwd = entry.get("cwd") or ""
