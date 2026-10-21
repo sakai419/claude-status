@@ -235,6 +235,10 @@ private struct SessionRow: View {
                             .foregroundStyle(SessionGroup.kept.color)
                             .help("キープ中")
                     }
+                    StaleNote(store: store, session: session)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(Theme.textTertiary)
+                        .lineLimit(1)
                     Spacer(minLength: 4)
                     RelativeTimeText(store: store, date: session.updatedDate)
                         .font(.system(size: 11).monospacedDigit())

@@ -77,6 +77,9 @@ struct SessionDetailView: View {
             RelativeTimeText(store: store, date: session.updatedDate, suffix: "に更新")
                 .font(.system(size: 11.5))
                 .foregroundStyle(Theme.textTertiary)
+            StaleNote(store: store, session: session)
+                .font(.system(size: 11.5))
+                .foregroundStyle(Theme.textTertiary)
 
             Spacer()
 
