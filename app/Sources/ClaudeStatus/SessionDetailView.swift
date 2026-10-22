@@ -11,6 +11,7 @@ struct SessionDetailView: View {
     @State private var replies: [String] = []
     @State private var loading = true
     @State private var transcriptMissing = false
+    @Environment(\.zoom) private var zoom
 
     private var group: SessionGroup { store.group(of: session) }
 
@@ -26,7 +27,7 @@ struct SessionDetailView: View {
                             placeholder("記録がありません")
                         } else {
                             Text(session.lastPrompt.trimmingCharacters(in: .whitespacesAndNewlines))
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundStyle(Theme.text)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -54,7 +55,7 @@ struct SessionDetailView: View {
                 }
                 .padding(.horizontal, 26)
                 .padding(.vertical, 22)
-                .frame(maxWidth: 820, alignment: .leading)
+                .frame(maxWidth: 820 * zoom, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollIndicators(.automatic)
@@ -70,24 +71,24 @@ struct SessionDetailView: View {
                 Image(systemName: group.symbol)
                 Text(group == .idle || group == .kept ? "\(group.title)（\(session.state.label)）" : group.title)
             }
-            .font(.system(size: 11.5, weight: .semibold))
+            .scaledFont(11.5, weight: .semibold)
             .foregroundStyle(group.color)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(group.color.opacity(0.14), in: Capsule())
 
             RelativeTimeText(store: store, date: session.updatedDate, suffix: "に更新")
-                .font(.system(size: 11.5))
+                .scaledFont(11.5)
                 .foregroundStyle(Theme.textTertiary)
             StaleNote(store: store, session: session)
-                .font(.system(size: 11.5))
+                .scaledFont(11.5)
                 .foregroundStyle(Theme.textTertiary)
 
             Spacer()
 
             if confirming {
                 Text("一覧から消しますか？（y で消す）")
-                    .font(.system(size: 11.5))
+                    .scaledFont(11.5)
                     .foregroundStyle(Theme.textSecondary)
                 Button("やめる") { confirming = false }.controlSize(.small)
                 Button("消す", role: .destructive, action: onDismiss).controlSize(.small)
@@ -100,18 +101,18 @@ struct SessionDetailView: View {
             }
         }
         .padding(.horizontal, 18)
-        .frame(height: 48)
+        .frame(height: 48 * zoom)
     }
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(session.projectName)
-                .font(.system(size: 22, weight: .semibold))
+                .scaledFont(22, weight: .semibold)
                 .foregroundStyle(Theme.text)
                 .textSelection(.enabled)
             if !session.parentPath.isEmpty {
                 Text(session.parentPath + "/")
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundStyle(Theme.textTertiary)
                     .textSelection(.enabled)
             }
@@ -140,7 +141,7 @@ struct SessionDetailView: View {
                     }
                 }
             }
-            .font(.system(size: 12))
+            .scaledFont(12)
             .foregroundStyle(Theme.text.opacity(0.85))
             .padding(.top, 8)
         }
@@ -153,14 +154,14 @@ struct SessionDetailView: View {
     private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .scaledFont(11, weight: .semibold)
                 .foregroundStyle(Theme.textSecondary)
             content()
         }
     }
 
     private func placeholder(_ s: String) -> some View {
-        Text(s).font(.system(size: 12.5)).foregroundStyle(Theme.textTertiary)
+        Text(s).scaledFont(12.5).foregroundStyle(Theme.textTertiary)
     }
 
     private func loadReplies() async {

@@ -31,6 +31,10 @@ final class WindowManager {
             panel?.alphaValue = opacity
         }
     }
+    /// メインウィンドウの中身の拡大率。⌘+ / ⌘- で段階的に変え、⌘0 で戻す
+    var zoom: Double {
+        didSet { UserDefaults.standard.set(zoom, forKey: Self.zoomKey) }
+    }
 
     @ObservationIgnored private let store: SessionStore
     @ObservationIgnored private var panel: NSPanel?
@@ -40,6 +44,9 @@ final class WindowManager {
     private static let shortcutKey = "windowShortcut"
     private static let pinnedKey = "pinned"
     private static let opacityKey = "opacity"
+    private static let zoomKey = "zoom"
+    /// 拡大率の段階（ブラウザの拡大縮小と同じように刻む）
+    private static let zoomSteps: [Double] = [0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
     /// 以前の SwiftUI のウィンドウと同じ名前にして、位置と大きさを引き継ぐ
     private static let frameName = "main"
 
@@ -53,6 +60,7 @@ final class WindowManager {
         }
         pinned = defaults.bool(forKey: Self.pinnedKey)
         opacity = defaults.object(forKey: Self.opacityKey) as? Double ?? 0.9
+        zoom = defaults.object(forKey: Self.zoomKey) as? Double ?? 1
         hotKey = GlobalHotKey { [weak self] in self?.toggle() }
         registerShortcut()
         NotificationCenter.default.addObserver(
@@ -63,6 +71,30 @@ final class WindowManager {
                 self.panel?.orderOut(nil)
             }
         }
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.panel?.isKeyWindow == true, self.handleZoomKey(event) else { return event }
+            return nil
+        }
+    }
+
+    /// ⌘+ / ⌘- / ⌘0 で拡大・縮小・元に戻す。
+    /// US 配列の ⌘=、JIS 配列の ⌘;（+ と同じキー）も拡大として受ける
+    private func handleZoomKey(_ event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection([.command, .control, .option]) == .command else { return false }
+        switch event.charactersIgnoringModifiers {
+        case "+", "=", ";": stepZoom(1)
+        case "-": stepZoom(-1)
+        case "0": zoom = 1
+        default: return false
+        }
+        return true
+    }
+
+    private func stepZoom(_ delta: Int) {
+        let steps = Self.zoomSteps
+        // いまの値にいちばん近い段から動かす
+        let current = steps.indices.min { abs(steps[$0] - zoom) < abs(steps[$1] - zoom) } ?? 0
+        zoom = steps[min(max(current + delta, 0), steps.count - 1)]
     }
 
     /// ショートカットを記録している間は、いまのショートカットを外しておく（押しても呼び出しが起きないように）
