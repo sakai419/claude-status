@@ -4,11 +4,13 @@ import SwiftUI
 struct SessionDetailView: View {
     let store: SessionStore
     let session: Session
+    /// 「一覧から消しますか？」を出しているか。x キーでも出すので、持ち主は一覧側。
+    @Binding var confirming: Bool
+    let onDismiss: () -> Void
 
     @State private var replies: [String] = []
     @State private var loading = true
     @State private var transcriptMissing = false
-    @State private var confirming = false
 
     private var group: SessionGroup { store.group(of: session) }
 
@@ -84,17 +86,17 @@ struct SessionDetailView: View {
             Spacer()
 
             if confirming {
-                Text("一覧から消しますか？")
+                Text("一覧から消しますか？（y で消す）")
                     .font(.system(size: 11.5))
                     .foregroundStyle(Theme.textSecondary)
                 Button("やめる") { confirming = false }.controlSize(.small)
-                Button("消す", role: .destructive) { store.dismiss(session) }.controlSize(.small)
+                Button("消す", role: .destructive, action: onDismiss).controlSize(.small)
             } else {
                 IconButton(symbol: session.kept ? "bookmark.fill" : "bookmark",
                            help: session.kept ? "キープを外す" : "キープする（アイドルになってもキープにまとめる）") {
                     store.setKept(session, !session.kept)
                 }
-                IconButton(symbol: "xmark", help: "一覧から消す") { confirming = true }
+                IconButton(symbol: "xmark", help: "一覧から消す（x）") { confirming = true }
             }
         }
         .padding(.horizontal, 18)

@@ -2,7 +2,7 @@ import ServiceManagement
 import SwiftUI
 
 /// メインウィンドウ。左にセッション一覧、右に選んだセッションの詳細。
-/// ↑↓ / j k で選択を動かせる（ターミナル版の cs と同じキー）。
+/// ↑↓ / j k で選択を動かし、x → y で一覧から消せる（ターミナル版の cs と同じキー）。
 /// 右ペインは、待ち時間用のミニゲームにも切り替えられる。
 struct MainWindow: View {
     let store: SessionStore
@@ -10,6 +10,8 @@ struct MainWindow: View {
     @State private var selectedID: String?
     @State private var playing = false
     @State private var game = Game2048()
+    /// 「一覧から消しますか？」を出している間 true。詳細の帯と x キーで共有する。
+    @State private var confirmingDismiss = false
     @FocusState private var listFocused: Bool
 
     /// 表示順に並べた全セッション（キー操作の移動先を決めるのに使う）
@@ -29,8 +31,10 @@ struct MainWindow: View {
                 if playing {
                     GameView(game: game) { playing = false }
                 } else if let session = selected {
-                    SessionDetailView(store: store, session: session)
-                        .id(session.id)
+                    SessionDetailView(store: store, session: session, confirming: $confirmingDismiss) {
+                        dismiss(session)
+                    }
+                    .id(session.id)
                 } else {
                     EmptyDetail()
                 }
@@ -44,16 +48,47 @@ struct MainWindow: View {
         .focusable()
         .focused($listFocused)
         .focusEffectDisabled()
-        .onKeyPress(keys: [.upArrow, .downArrow, "j", "k"]) { press in
-            // ゲーム中のキーはゲーム側が受ける。ここまで来ても一覧は動かさない
-            guard !playing else { return .ignored }
-            move(press.key == .upArrow || press.key == "k" ? -1 : 1)
+        .onKeyPress { press in
+            // ゲーム中のキーはゲーム側が受ける。ここまで来ても一覧は動かさない。⌘ 付きはメニューに任せる
+            guard !playing, !press.modifiers.contains(.command) else { return .ignored }
+            let char = press.characters.lowercased()
+            if confirmingDismiss {
+                // 確認中は全キーをここで食う。y だけが消し、ほかのキーはやめる（cs と同じ）
+                if char == "y", let session = selected { dismiss(session) }
+                confirmingDismiss = false
+                return .handled
+            }
+            switch press.key {
+            case .upArrow: move(-1)
+            case .downArrow: move(1)
+            default:
+                switch char {
+                case "k": move(-1)
+                case "j": move(1)
+                case "x" where selected != nil: confirmingDismiss = true
+                default: return .ignored
+                }
+            }
             return .handled
         }
         .onAppear(perform: keepSelection)
         .onChange(of: store.sessions) { keepSelection() }
+        .onChange(of: selectedID) { confirmingDismiss = false }
         // ゲームを閉じたら、キー操作を一覧に戻す
-        .onChange(of: playing) { _, on in if !on { listFocused = true } }
+        .onChange(of: playing) { _, on in
+            confirmingDismiss = false
+            if !on { listFocused = true }
+        }
+    }
+
+    /// 一覧から消す。消したのが選択中なら、選択を次（無ければ前）のセッションへ寄せる（cs と同じ）
+    private func dismiss(_ session: Session) {
+        let list = ordered
+        if session.id == selectedID, let i = list.firstIndex(where: { $0.id == session.id }) {
+            selectedID = i + 1 < list.count ? list[i + 1].id : i > 0 ? list[i - 1].id : nil
+        }
+        confirmingDismiss = false
+        store.dismiss(session)
     }
 
     /// 選択中のセッションが消えたら（または未選択なら）先頭を選ぶ
@@ -322,7 +357,7 @@ private struct ListFooter: View {
                     .lineLimit(1)
             }
             Spacer()
-            Text("↑↓ で選択")
+            Text("↑↓ で選択 · x で消す")
                 .font(.system(size: 10.5))
                 .foregroundStyle(Theme.textTertiary)
         }
