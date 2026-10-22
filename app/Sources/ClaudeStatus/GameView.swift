@@ -7,18 +7,19 @@ struct GameView: View {
     let onClose: () -> Void
 
     @FocusState private var focused: Bool
+    @Environment(\.zoom) private var zoom
 
     var body: some View {
         VStack(spacing: 0) {
             toolbar
             Rectangle().fill(Theme.line).frame(height: 1)
             GeometryReader { geo in
-                let side = max(min(geo.size.width - 52, geo.size.height - 150, 440), 200)
+                let side = max(min(geo.size.width - 52, geo.size.height - 150 * zoom, 440 * zoom), 200)
                 VStack(spacing: 18) {
                     scores.frame(width: side)
                     board(side: side)
                     Text("← ↑ → ↓ / WASD で動かす · Esc で戻る")
-                        .font(.system(size: 11))
+                        .scaledFont(11)
                         .foregroundStyle(Theme.textTertiary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -58,7 +59,7 @@ struct GameView: View {
                 Image(systemName: "gamecontroller.fill")
                 Text("2048")
             }
-            .font(.system(size: 11.5, weight: .semibold))
+            .scaledFont(11.5, weight: .semibold)
             .foregroundStyle(Theme.textSecondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -72,7 +73,7 @@ struct GameView: View {
             IconButton(symbol: "xmark", help: "詳細に戻る（Esc）", action: onClose)
         }
         .padding(.horizontal, 18)
-        .frame(height: 48)
+        .frame(height: 48 * zoom)
     }
 
     private var scores: some View {
@@ -86,10 +87,10 @@ struct GameView: View {
     private func scoreBox(_ title: String, _ value: Int) -> some View {
         VStack(spacing: 1) {
             Text(title)
-                .font(.system(size: 10, weight: .semibold))
+                .scaledFont(10, weight: .semibold)
                 .foregroundStyle(Theme.textTertiary)
             Text("\(value)")
-                .font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())
+                .scaledFont(15, weight: .semibold, design: .rounded, monospacedDigit: true)
                 .foregroundStyle(Theme.text)
                 .contentTransition(.numericText(value: Double(value)))
         }
@@ -154,10 +155,10 @@ private struct BannerCard<Actions: View>: View {
     var body: some View {
         VStack(spacing: 8) {
             Text(title)
-                .font(.system(size: 18, weight: .semibold))
+                .scaledFont(18, weight: .semibold)
                 .foregroundStyle(Theme.text)
             Text(detail)
-                .font(.system(size: 12.5).monospacedDigit())
+                .scaledFont(12.5, monospacedDigit: true)
                 .foregroundStyle(Theme.textSecondary)
             HStack(spacing: 8) { actions }
                 .controlSize(.regular)

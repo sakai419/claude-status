@@ -17,6 +17,8 @@ struct MainWindow: View {
     /// 表示順に並べた全セッション（キー操作の移動先を決めるのに使う）
     private var ordered: [Session] { store.grouped.flatMap(\.sessions) }
 
+    private var zoom: CGFloat { windows.zoom }
+
     private var selected: Session? {
         guard let id = selectedID else { return nil }
         return store.sessions.first { $0.id == id }
@@ -25,7 +27,7 @@ struct MainWindow: View {
     var body: some View {
         HStack(spacing: 0) {
             SessionListPane(store: store, windows: windows, selectedID: $selectedID, playing: $playing)
-                .frame(width: 360)
+                .frame(width: 360 * zoom)
             Rectangle().fill(Theme.line).frame(width: 1)
             Group {
                 if playing {
@@ -45,6 +47,7 @@ struct MainWindow: View {
         .background(Theme.background)
         .ignoresSafeArea()
         .environment(\.colorScheme, .dark)
+        .environment(\.zoom, zoom)
         .focusable()
         .focused($listFocused)
         .focusEffectDisabled()
@@ -110,9 +113,9 @@ private struct EmptyDetail: View {
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: "rectangle.stack")
-                .font(.system(size: 30, weight: .light))
+                .scaledFont(30, weight: .light)
             Text("セッションを選ぶと、プロンプトと返答が表示されます")
-                .font(.system(size: 12.5))
+                .scaledFont(12.5)
         }
         .foregroundStyle(Theme.textTertiary)
     }
@@ -125,6 +128,7 @@ private struct SessionListPane: View {
     @Bindable var windows: WindowManager
     @Binding var selectedID: String?
     @Binding var playing: Bool
+    @Environment(\.zoom) private var zoom
 
     var body: some View {
         VStack(spacing: 0) {
@@ -133,9 +137,9 @@ private struct SessionListPane: View {
             if store.sessions.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "bubble.left.and.bubble.right")
-                        .font(.system(size: 26, weight: .light))
+                        .scaledFont(26, weight: .light)
                     Text("動いているセッションはありません")
-                        .font(.system(size: 12.5))
+                        .scaledFont(12.5)
                 }
                 .foregroundStyle(Theme.textTertiary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -181,7 +185,7 @@ private struct SessionListPane: View {
         }
         .padding(.leading, 84)
         .padding(.trailing, 14)
-        .frame(height: 48)
+        .frame(height: 48 * zoom)
     }
 }
 
@@ -192,9 +196,9 @@ private struct CountChip: View {
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: group.symbol)
-                .font(.system(size: 9.5))
+                .scaledFont(9.5)
             Text("\(count)")
-                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                .scaledFont(11, weight: .semibold, monospacedDigit: true)
         }
         .foregroundStyle(group.color)
         .padding(.horizontal, 6)
@@ -220,7 +224,7 @@ private struct GroupSection: View {
                 Text("\(sessions.count)")
                     .foregroundStyle(Theme.textTertiary)
             }
-            .font(.system(size: 11, weight: .semibold))
+            .scaledFont(11, weight: .semibold)
             .padding(.leading, 4)
 
             ForEach(sessions) { session in
@@ -254,59 +258,59 @@ private struct SessionRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(session.projectName)
-                        .font(.system(size: 13, weight: .semibold))
+                        .scaledFont(13, weight: .semibold)
                         .foregroundStyle(Theme.text)
                         .lineLimit(1)
                     if group == .idle || group == .kept {
                         Text(session.state.label)
-                            .font(.system(size: 10, weight: .medium))
+                            .scaledFont(10, weight: .medium)
                             .foregroundStyle(Theme.textSecondary)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
                             .background(Color.white.opacity(0.08), in: Capsule())
                     } else if session.kept {
                         Image(systemName: SessionGroup.kept.symbol)
-                            .font(.system(size: 10))
+                            .scaledFont(10)
                             .foregroundStyle(SessionGroup.kept.color)
                             .help("キープ中")
                     }
                     StaleNote(store: store, session: session)
-                        .font(.system(size: 10.5))
+                        .scaledFont(10.5)
                         .foregroundStyle(Theme.textTertiary)
                         .lineLimit(1)
                     Spacer(minLength: 4)
                     RelativeTimeText(store: store, date: session.updatedDate)
-                        .font(.system(size: 11).monospacedDigit())
+                        .scaledFont(11, monospacedDigit: true)
                         .foregroundStyle(Theme.textTertiary)
                 }
                 Text(session.parentPath.isEmpty ? " " : session.parentPath)
-                    .font(.system(size: 10.5))
+                    .scaledFont(10.5)
                     .foregroundStyle(Theme.textTertiary)
                     .lineLimit(1)
                     .truncationMode(.head)
 
                 if !session.promptSummary.isEmpty {
                     Text(session.promptSummary)
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundStyle(Theme.text.opacity(0.8))
                         .lineLimit(2)
                         .padding(.top, 2)
                 }
                 if !session.intent.isEmpty {
                     Label(session.intent, systemImage: "flag.fill")
-                        .font(.system(size: 11))
+                        .scaledFont(11)
                         .foregroundStyle(Theme.textSecondary)
                         .lineLimit(1)
                 }
                 if session.state == .subagent, session.subagentCount > 0 {
                     Label("サブエージェント \(session.subagentCount)件", systemImage: "person.2.fill")
-                        .font(.system(size: 11))
+                        .scaledFont(11)
                         .foregroundStyle(SessionGroup.subagent.color)
                         .lineLimit(1)
                 }
                 ForEach(session.watches, id: \.kind) { w in
                     Label("\(w.kind) \(w.count)件", systemImage: SessionGroup.watching.symbol)
-                        .font(.system(size: 11))
+                        .scaledFont(11)
                         .foregroundStyle(SessionGroup.watching.color)
                         .lineLimit(1)
                 }
@@ -342,27 +346,34 @@ private struct SessionRow: View {
 private struct ListFooter: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
+    @Environment(\.zoom) private var zoom
 
     var body: some View {
         HStack(spacing: 10) {
             Toggle("ログイン時に起動", isOn: $launchAtLogin)
                 .toggleStyle(.checkbox)
-                .font(.system(size: 11))
+                .scaledFont(11)
                 .foregroundStyle(Theme.textSecondary)
                 .onChange(of: launchAtLogin) { _, on in setLaunchAtLogin(on) }
             if let loginError {
                 Text(loginError)
-                    .font(.system(size: 10))
+                    .scaledFont(10)
                     .foregroundStyle(.red)
                     .lineLimit(1)
             }
             Spacer()
+            if zoom != 1 {
+                Text("\(Int((zoom * 100).rounded()))%")
+                    .scaledFont(10.5, monospacedDigit: true)
+                    .foregroundStyle(Theme.textTertiary)
+                    .help("⌘0 で元の大きさに戻す")
+            }
             Text("↑↓ で選択 · x で消す")
-                .font(.system(size: 10.5))
+                .scaledFont(10.5)
                 .foregroundStyle(Theme.textTertiary)
         }
         .padding(.horizontal, 14)
-        .frame(height: 36)
+        .frame(height: 36 * zoom)
     }
 
     private func setLaunchAtLogin(_ on: Bool) {
@@ -382,12 +393,13 @@ struct IconButton: View {
     let help: String
     let action: () -> Void
     @State private var hovering = false
+    @Environment(\.zoom) private var zoom
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 12, weight: .semibold))
-                .frame(width: 26, height: 24)
+                .scaledFont(12, weight: .semibold)
+                .frame(width: 26 * zoom, height: 24 * zoom)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Color.white.opacity(hovering ? 0.12 : 0))

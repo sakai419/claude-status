@@ -5,6 +5,7 @@ import SwiftUI
 /// 行内の強調・コード・リンクは AttributedString の Markdown 解釈に任せる。
 struct MarkdownText: View {
     private let blocks: [Block]
+    @Environment(\.zoom) private var zoom
 
     init(_ text: String) {
         blocks = Block.parse(text)
@@ -25,22 +26,22 @@ struct MarkdownText: View {
         switch block {
         case .heading(let level, let text):
             Text(inline(text))
-                .font(.system(size: level <= 1 ? 15 : level == 2 ? 13.5 : 12.5, weight: .semibold))
+                .scaledFont(level <= 1 ? 15 : level == 2 ? 13.5 : 12.5, weight: .semibold)
                 .padding(.top, 2)
         case .paragraph(let text):
             Text(inline(text))
-                .font(.system(size: 12.5))
+                .scaledFont(12.5)
                 .fixedSize(horizontal: false, vertical: true)
         case .list(let items):
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(item.marker)
-                            .font(.system(size: 12.5).monospacedDigit())
+                            .scaledFont(12.5, monospacedDigit: true)
                             .foregroundStyle(.secondary)
-                            .frame(minWidth: 12, alignment: .trailing)
+                            .frame(minWidth: 12 * zoom, alignment: .trailing)
                         Text(inline(item.text))
-                            .font(.system(size: 12.5))
+                            .scaledFont(12.5)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(.leading, CGFloat(item.indent) * 12)
@@ -53,7 +54,7 @@ struct MarkdownText: View {
                         GridRow {
                             ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
                                 Text(inline(cell))
-                                    .font(.system(size: 12, weight: i == 0 ? .semibold : .regular))
+                                    .scaledFont(12, weight: i == 0 ? .semibold : .regular)
                                     .fixedSize()
                             }
                         }
@@ -67,7 +68,7 @@ struct MarkdownText: View {
         case .code(let text):
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(text)
-                    .font(.system(size: 11.5, design: .monospaced))
+                    .scaledFont(11.5, design: .monospaced)
                     .fixedSize()
                     .padding(9)
             }
@@ -77,7 +78,7 @@ struct MarkdownText: View {
             HStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 1).fill(.tertiary).frame(width: 3)
                 Text(inline(text))
-                    .font(.system(size: 12.5))
+                    .scaledFont(12.5)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

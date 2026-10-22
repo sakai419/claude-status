@@ -13,3 +13,29 @@ enum Theme {
     static let textSecondary = Color.white.opacity(0.56)
     static let textTertiary = Color.white.opacity(0.34)
 }
+
+extension EnvironmentValues {
+    /// メインウィンドウの拡大率（⌘+ / ⌘- / ⌘0）。文字と、文字に合わせて決めている寸法に掛ける
+    @Entry var zoom: CGFloat = 1
+}
+
+extension View {
+    /// システムフォントを、ウィンドウの拡大率を掛けた大きさで使う
+    func scaledFont(_ size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default,
+                    monospacedDigit: Bool = false) -> some View {
+        modifier(ScaledFont(size: size, weight: weight, design: design, monospacedDigit: monospacedDigit))
+    }
+}
+
+private struct ScaledFont: ViewModifier {
+    let size: CGFloat
+    let weight: Font.Weight
+    let design: Font.Design
+    let monospacedDigit: Bool
+    @Environment(\.zoom) private var zoom
+
+    func body(content: Content) -> some View {
+        let font = Font.system(size: size * zoom, weight: weight, design: design)
+        content.font(monospacedDigit ? font.monospacedDigit() : font)
+    }
+}
